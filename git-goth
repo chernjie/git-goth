@@ -629,12 +629,12 @@ case $1 in
 	''|-h|help|?)         error;;
 	edit|-e)              vim $0;;
 	eclipse)              open -a /Applications/eclipse_indigo/Eclipse.app/ $0;;
-	branch)
+	branch|br)
 		shift; case $1 in
 			last)         shift; active_branch_from_log $@;;
 			*)            show_branch_status;;
 		esac;;
-	upstream)             shift; get_git_svn_branch $@;;
+	upstream|up)             shift; get_git_svn_branch $@;;
 	info|release)         shift; latest_rc_tags $@;;
 	tag|tags|rc)          error;; #reserved
 	clone|init)           init_git_svn_repo $@;;
@@ -648,6 +648,15 @@ case $1 in
 	scp|stage)            shift; scp_and_stage $@;;
 	rebase)				  shift; gitsvnrebase $@;;
 	trac)                 shift; generate_trac_link $@;;
+	tracf)                shift;
+		echo $(
+			generate_trac_link $1
+		) $(
+			git config svn-remote.svn.branches | cut -d: -f1 | cut -d/ -f1,2
+		) $(
+			get_git_svn_branch $1
+		) $2 | tr \  /
+		;;		
 	cherry-pick|cp)       shift; svn_cherry_pick $@;;
 	qa)
 		shift; case $1 in
