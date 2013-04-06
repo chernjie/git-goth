@@ -68,9 +68,9 @@ function active_branch_from_log()
 		tr "(,)" " " |
 		xargs printf "%s\n" |
 		grep -vE "^$(
-			git remote | implode "/|^"
+			git remote | xargs echo | sed 's# #/|^#g'
 		)/|^$(
-			git branch | tr -d \*\ | implode "|^"
+			git branch | tr -d \*\ | xargs echo | sed 's# #|^#g'
 		)|^HEAD|^refs/stash" |
 		head -$count
 }
@@ -114,7 +114,7 @@ function non_release_jira()
 	#
 	for i in $(
 		git branch -r | tr -d \ | grep -E "[A-Z]+\-[0-9]+" --color=never | grep -vE "^$(
-			git remote | implode "/|^"
+			git remote | xargs echo | sed 's# #/|^#g'
 		)/"
 	)
 	do
@@ -160,7 +160,7 @@ function push_remote()
 	echo "Pushing new SVN branches to remote..."
 	echo
 	branches_to_push=$(missing_remote_branches $remote ${2:-20})
-	# all_branches=$(git branch -r | tr -d \ | grep -v ^$(git remote | implode "|"))
+	# all_branches=$(git branch -r | tr -d \ | grep -v ^$(git remote | xargs echo | tr ' ' '|'))
 	for i in $branches_to_push
 	do
 		echo master:$i
@@ -236,8 +236,8 @@ function delete_non_svn_branches_from_remote()
 		grep -vE "^$(
 			git branch -r | tr -d \ |
 				grep -vE "^$(
-					git remote | implode "/|^"
-				)/" | implode "|^"
+					git remote | xargs echo | sed 's# #/|^#g'
+				)/" | xargs echo | sed 's# #|^#g'
 			)" |
 		grep -v master |
 		xargs git push --delete $remote
@@ -369,7 +369,7 @@ function blame_during_merge_conflicts()
 				do
 					[ $(git show --pretty=format:"%s%n%b" --shortstat $h | grep -c "$b") -gt 0 ] &&
 					git svn find-rev $h | xargs printf "r%s\n"
-				done | implode ','
+				done | xargs echo | tr ' ' ','
 			)
 		done
 	done | column -t
@@ -406,7 +406,7 @@ function jira_release_tracking()
 				git log -1 --format="%h %an $(
 					git mig33 upstream $h
 				)($(
-					git branch --contains $h | tr -d ' ' | implode '|'
+					git branch --contains $h | tr -d ' ' | xargs echo | tr ' ' '|'
 				)) $(
 					git svn find-rev $h | xargs printf 'r%s'
 				)" $h
