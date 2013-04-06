@@ -374,18 +374,29 @@ function jira_release_tracking()
 			[ -n "$(
 				git branch | grep mqa --color=never |
 					tr -d " *" | xargs printf "^%s\n" |
-					git lg --stdin --all --grep=$i ^$i HEAD
+					git lg --stdin --all --grep=$i ^$(git branch -a | grep remotes/[^/]*$i --color=never | tr -d ' ') HEAD
 			)" ]
 		then
 			jira-cli --oneline $i
-			git lg --all --grep=$i
+			# git lg --all --grep=$i
+			for h in $(git rev-list --all --grep=$i)
+			do
+				git log -1 --format="%h %an $(
+					git mig33 upstream $h
+				)($(
+					git branch --contains $h | tr -d ' '
+				)) $(
+					git svn find-rev $h | xargs printf 'r%s'
+				)" $h
+			done | column -t
+			exit
 		else
 			if [ -z "$(git config release.jira)" ]
 			then
 				error "release.jira doesn't exist, try:
 				git config release.jira QAT-XXX"
 			fi
-			echo git qa merge $i $(git config release.jira) mergeQA
+			echo git qa merge $(git branch -a | grep remotes/[^/]*$i --color=never | tr -d ' ') $(git config release.jira) mergeQA
 		fi
 	done
 }
