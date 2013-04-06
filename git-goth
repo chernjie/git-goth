@@ -16,11 +16,10 @@ function latest_rc_tags()
 function get_svn_branch()
 {
 	# git-ref
+	[ $# -gt 1 ] || set -- HEAD
 	for i in $@
 	do
-		git log $i --pretty=format:"%B" --first-parent |
-			grep git-svn-id |
-			head -1 |
+		git log -1 --pretty=format:"%B" --first-parent --grep git-svn-id $i |
 			grep -oE '(branches/|tags/)?[^/]+@' --color=never |
 			tr -d "@"
 	done
@@ -29,6 +28,24 @@ function get_svn_branch()
 function get_git_svn_branch()
 {
 	get_svn_branch $@ | grep -oE '(tags/)?[^/]+$' --color=never
+}
+
+function find_upstream()
+{
+	if [[ -z "$(
+		git config --get-regexp 'svn-remote.*url$'
+	)" ]]
+	then
+		echo "@{upstream}"
+	elif [[ -z "$(
+		git config --get-regexp 'svn-remote.*(fetch|tags|branches)$' | cut -d' ' -f2 | cut -d: -f1
+	)" ]]
+	then
+		# default branch name for checkouts with no layout:
+		echo ${GIT_SVN_ID:-git-svn}
+	else
+		get_git_svn_branch $@
+	fi
 }
 
 function active_branch_from_log()
@@ -405,6 +422,7 @@ case $1 in
 			              shift; latest_rc_tags $@;;
 			*)            active_branch_from_log $@;;
 		esac;;
+	upstream)             shift; find_upstream $@;;
 	info|release)         shift; latest_rc_tags $@;;
 	tag|tags|rc)          error;; #reserved
 	clone|init)           init_git_svn_repo $@;;
