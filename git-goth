@@ -619,7 +619,7 @@ function gitsvnrebase()
 	
 	for i in ${_list[@]}
 	do
-		_u=$(git mig33 upstream $i)
+		_u=$(git goth upstream $i)
 		_delta=($(
 			git rev-list --count --left-right $_u...$i
 		))
@@ -720,21 +720,21 @@ function svn_cherry_pick()
 
 function _usage()
 {
-	echo "Usage: git mig33 -h|help|?"
-	echo "Usage: git mig33 edit|-e|eclipse                 # edit this script"
-#	echo "Usage: git mig33 clone|init [repo_name]          # clone git svn repo"
-	echo "Usage: git mig33 branch                          # Show upstream/downstream stats"
-	echo "Usage: git mig33 branch last [<limit>]           # list SVN branches sorted by last updated"
-	echo "Usage: git mig33 scp|stage <remote> [ref|file..] # scp and stage your files to specified remote"
-#	echo "Usage: git mig33 remote cleanup <remote>         # reverse prune, deletes remote non SVN branch"
-#	echo "Usage: git mig33 remote missing <remote>         # SVN branches missing from remote"
-	echo "Usage: git mig33 remote                          # show remote status relative to HEAD"
-	echo "Usage: git mig33 upstream|up [<ref>]             # find upstream branch"
-	echo "Usage: git mig33 scp|stage <remote> [<ref>]      # show diff relative to <ref> and upload unstaged files to <remote>"
-	echo "Usage: git mig33 show [-dhj]                     # -d:unpushed -h:hash-only -j:jira-only"
-	echo "Usage: git mig33 rebase --all                    # stash + svn fetch + rebase all branches"
-	echo "Usage: git mig33 cherry-pick|cp [<ref>..]        # customized cherry-pick for SVN"
-	echo "Usage: git mig33 trac|tracf [<ref>..]            # generate Trac link"
+	echo "Usage: git goth -h|help|?"
+	echo "Usage: git goth edit|-e|eclipse                 # edit this script"
+#	echo "Usage: git goth clone|init [repo_name]          # clone git svn repo"
+	echo "Usage: git goth branch                          # Show upstream/downstream stats"
+	echo "Usage: git goth branch last [<limit>]           # list SVN branches sorted by last updated"
+	echo "Usage: git goth scp|stage <remote> [ref|file..] # scp and stage your files to specified remote"
+#	echo "Usage: git goth remote cleanup <remote>         # reverse prune, deletes remote non SVN branch"
+#	echo "Usage: git goth remote missing <remote>         # SVN branches missing from remote"
+	echo "Usage: git goth remote                          # show remote status relative to HEAD"
+	echo "Usage: git goth upstream|up [<ref>]             # find upstream branch"
+	echo "Usage: git goth scp|stage <remote> [<ref>]      # show diff relative to <ref> and upload unstaged files to <remote>"
+	echo "Usage: git goth show [-dhj]                     # -d:unpushed -h:hash-only -j:jira-only"
+	echo "Usage: git goth rebase --all                    # stash + svn fetch + rebase all branches"
+	echo "Usage: git goth cherry-pick|cp [<ref>..]        # customized cherry-pick for SVN"
+	echo "Usage: git goth trac|tracf [<ref>..]            # generate Trac link"
 	echo
 	echo "Usage: git qa info [-limit]                      # list last RC tags or maintenance branch"
 	echo "Usage: git qa graph [-limit]                     # show QA graph"
@@ -744,7 +744,7 @@ function _usage()
 #	echo "Usage: git qa push|dcommit <remote>              # Please do not use this!!! update local SVN to remote"
 	echo
 	echo "Deprecated commands:"
-	echo "Usage: git mig33 log [branch]                    # log of current SVN branch"
+	echo "Usage: git goth log [branch]                    # log of current SVN branch"
 	echo "Usage: git qa rc [new [QAT]]                     # Create new SVN branch"
 	echo "Usage: git qa build                              # Run ant build"
 	echo "Usage: git qa tag [REL_8.XX]                     # Generate create new SVN tag command"
@@ -805,7 +805,7 @@ case $1 in
 		tag)              shift; create_tag $@;;   # Destructive
 		rebase)           shift; rebase_trunk $@;; # Destructive
 		build)            shift; run_ant_build;;
-		*)                git mig33 $@;; #_error;;
+		*)                git goth $@;; #_error;;
 		                  esac;;
 	*)                    git svn $@;; #_error;;
 esac;
