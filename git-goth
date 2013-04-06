@@ -2,7 +2,7 @@
 
 function latest_rc_tags()
 {
-	for i in "^maintenance_2012.." "^REL_.*_RC\$" "^tags/REL_.*\$"
+	for i in "^maintenance_2012.." "^REL_.*_RC\$" "^tags/([0-9]|REL_).*\$"
 	do
 		git branch -r | tr -d \ | grep -E "$i" --color=never | tail -1
 	done #List latest RC and tags
