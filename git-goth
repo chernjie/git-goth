@@ -265,16 +265,17 @@ function create_rc()
 
 function show_non_dcommit_hashes()
 {
-	git svn dcommit --dry-run | grep diff | tr " " "\n" | grep -v diff | grep -v "~"
+	git rev-list --reverse --first-parent $(get_git_svn_branch $1)..$1
+	#git svn dcommit --dry-run | grep diff | tr " " "\n" | grep -v diff | grep -v "~"
 }
 
 function show_log()
 {
-	args=$(getopt :dhj $*)
+	args=$(getopt :d:hj $*)
 	set -- $args
 	for i do
 		case "$1" in
-			-d) unpushed=$(show_non_dcommit_hashes); shift;;
+			-d) shift; unpushed=$(show_non_dcommit_hashes $1); shift;;
 			-h) hashonly="--pretty=format:%h"; shift;;
 			-j) jiraonly="--pretty=format:%B"; shift;;
 			--) shift; break;;
