@@ -428,20 +428,21 @@ function scp_and_stage
 	set_remote $1
 	shift
 
-	head=""
-	if [ $(echo $1 | grep -i -c '^head\(~[0-9]*\)*$') -eq 1 ]
+	local refhead="$(git rev-parse --quiet --verify $1)"
+	if [ -n "$refhead" ]
 	then
-		head=$1
 		shift
+		[ $(git branch --contains "$refhead" | grep -c '\*') -eq 0 ] &&
+			error "refhead provided is not part of current branch"
 	fi
 
 	if [ $# -ge 1 ]
 	then
 		list=$(echo "$@" | tr ' ' "\\n")
-	elif [ -n "$head" ]
+	elif [ -n "$refhead" ]
 	then
-		git diff --stat $head
-		list=$(git diff $head --name-only)
+		git diff --stat $refhead
+		list=$(git diff $refhead --name-only)
 	else
 		git diff
 		list=$(git diff --name-only)
@@ -529,7 +530,7 @@ case $1 in
 		esac;;
 	show)                 shift; show_log $@;;
 	log)                  shift; svn_branch_log $@;;
-	scp)				  shift; scp_and_stage $@;;
+	scp|stage)            shift; scp_and_stage $@;;
 	rebase)				  shift; gitsvnrebase $@;;
 	trac)                 shift; generate_trac_link $@;;
 	qa)
