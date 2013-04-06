@@ -60,7 +60,7 @@ function get_svn_branch()
 		)"
 	done
 	svn_url_pattern="${svn_url_pattern#?}"
-	
+
 	git log -1 --pretty=format:"%s%n%b" --first-parent --grep=git-svn-id $1 |
 		grep git-svn-id |
 		cut -d' ' -f2 |
@@ -106,7 +106,7 @@ function svn_branch_log()
 			REF="$i"
 		elif [ $COUNT -gt 0 ] && [ "${i:0:1}" != "-" ]
 		then
-			error "Only one branch ref allowed!"
+			_error "Only one branch ref allowed!"
 		else
 			ARGS="$ARGS $i"
 		fi
@@ -175,7 +175,7 @@ function push_remote()
 {
 	set_remote $1
 	
-	[ -d ~/mig33/Scripts ] || error "Missing resource ~/mig33/Scripts"
+	[ -d ~/mig33/Scripts ] || _error "Missing resource ~/mig33/Scripts"
 	
 	echo
 	echo "Pushing new SVN branches to remote..."
@@ -206,7 +206,7 @@ REMOTE_ORIGIN=mig33
 function init_git_svn_repo()
 {
 	case $2 in
-		'') error "Repository name required, e.g. login.mig33.com";;
+		'') _error "Repository name required, e.g. login.mig33.com";;
 		*)  repo_name=$2;;
 	esac
 	case $3 in
@@ -218,7 +218,7 @@ function init_git_svn_repo()
 			mkdir $repo_name
 			cd $repo_name;;
 		init) ;;
-		*) error "Clone or init only..."
+		*) _error "Clone or init only..."
 	esac
 	
 	git svn init --stdlayout "$(printf $SVN_URL $repo_name)"
@@ -270,10 +270,10 @@ function create_rc()
 		'') RC_BRANCH=$(latest_rc_tags | grep _RC --color=never);;
 		new)
 			shift;
-			#[ $# -ge 1 ] || error "Missing argument QAT JIRA"
+			#[ $# -ge 1 ] || _error "Missing argument QAT JIRA"
 			i=$(latest_rc_tags | grep RC | grep -oE '\.[0-9]+' --color=never | tr -d \.)
 			RC_BRANCH=$(latest_rc_tags | grep RC | sed "s#$i#$((1+$i))#")
-			[ $(echo $1 | grep -cE '[A-Z]+\-[0-9]+') -eq 1 ] || error "Invalid QAT number"
+			[ $(echo $1 | grep -cE '[A-Z]+\-[0-9]+') -eq 1 ] || _error "Invalid QAT number"
 			git config release.jira $1
 			JIRA="$(git config release.jira)";
 			echo "git checkout master"
@@ -282,17 +282,17 @@ function create_rc()
 			echo "Warning: Command not completed yet"
 			exit;;
 		REL_[0-9.]*_RC) RC_BRANCH="$1"; shift;;
-		*) error "the given/current RC branch does not follow RC convention (e.g. REL_*_RC): $RC_BRANCH";;
+		*) _error "the given/current RC branch does not follow RC convention (e.g. REL_*_RC): $RC_BRANCH";;
 	esac
 	
 	RC_NUMBER=$(echo $RC_BRANCH | grep -oE '[0-9\.]+' --color=never | sed 's#\.##')
 	
 	if [ $(echo $RC_BRANCH | grep -c -E '^REL_[0-9\.]+_RC$') -lt 1 ]
 	then
-		error "the given/current RC branch does not follow RC convention (e.g. REL_*_RC): $RC_BRANCH"
+		_error "the given/current RC branch does not follow RC convention (e.g. REL_*_RC): $RC_BRANCH"
 	elif [ $(git branch -a | grep -c $RC_BRANCH) -lt 1 ]
 	then
-		error "the given RC branch does not exist in your git index,
+		_error "the given RC branch does not exist in your git index,
 		run
 			git svn rebase --all
 		or
@@ -376,7 +376,7 @@ function guess_new_tag()
 
 function create_tag()
 {
-	git config release.jira | xargs test -z && error "Error: release.jira config not set, please run:
+	git config release.jira | xargs test -z && _error "Error: release.jira config not set, please run:
 
 	git config release.jira <QAT-XXX>"
 	SUGGESTION="REL_$(guess_new_tag)"
@@ -401,6 +401,14 @@ function rebase_trunk()
 		MERGE_FROM="--no-jira master"
 	
 	git qa merge $MERGE_FROM $(git config release.jira) post release $(latest_rc_tags | grep tags)
+}
+
+function run_ant_build()
+{
+	cd build &&
+		ant &&
+		cd ../ &&
+		git commit -a -m "$(git config release.jira): build files for tags/REL_$(guess_new_tag);"
 }
 
 function show_non_dcommit_hashes()
@@ -509,7 +517,7 @@ function jira_release_tracking()
 		else
 			if [ -z "$(git config release.jira)" ]
 			then
-				error "release.jira doesn't exist, try:
+				_error "release.jira doesn't exist, try:
 				git config release.jira QAT-XXX"
 			fi
 			echo git qa merge $(git branch -a | grep remotes/[^/]*$i --color=never | tr -d ' ') $(git config release.jira) mergeQA
@@ -527,7 +535,7 @@ function scp_and_stage
 	then
 		shift
 		[ $(git branch --contains "$refhead" | grep -c '\*') -eq 0 ] &&
-			error "refhead provided is not part of current branch"
+			_error "refhead provided is not part of current branch"
 	fi
 
 	if [ $# -ge 1 ]
@@ -595,7 +603,7 @@ function gitsvnrebase()
 
 	echo git svn fetch --all
 	git svn fetch --all
-
+	
 	for i in ${_list[@]}
 	do
 		_u=$(git mig33 upstream $i)
@@ -617,9 +625,9 @@ function gitsvnrebase()
 			fi
 		fi
 	done
-
+	
 	[ $has_changes -gt 0 ] && git stash pop # > /dev/null 2>&1
-
+	
 	exit 0
 }
 
@@ -639,6 +647,23 @@ function show_branch_status
 	return
 }
 
+function show_remote_status()
+{
+	CURRENT_BRANCH=$(git name-rev --name-only HEAD)
+	if [ $# -gt 0 ]
+	then
+		_remotes="$@"
+	else
+		_remotes=$(git branch -r | grep -E "($(git remote | xargs echo | tr " " "|"))/$CURRENT_BRANCH" | grep -v "\->")
+	fi
+	# echo tracking $_remotes
+	( echo Branch Upstream Ahead
+	for _remote in $_remotes
+	do
+		git rev-list --left-right --count $_remote... | xargs echo $_remote
+	done ) | column -t
+}
+
 function generate_trac_link()
 {
 	for i
@@ -647,14 +672,25 @@ function generate_trac_link()
 	done
 }
 
+function generate_trac_link_with_file()
+{
+	echo $(
+		generate_trac_link $1
+	) $(
+		git config svn-remote.svn.branches | cut -d: -f1 | cut -d/ -f1,2
+	) $(
+		get_git_svn_branch $1
+	) $2 | tr \  /
+}
+
 function svn_cherry_pick()
 {
 	for ref
 	do
 		# check if ref is valid
 		local refhead="$(git rev-parse --quiet --verify $ref)"
-		[ -z "$refhead" ] && error "Invalid reference given, ref can be either a branch name, tag, git hash or HEAD"
-		[ -z "$(git svn find-rev $refhead)" ] && error "$ref is not a SVN commit, please use \"git cherry-pick $ref\" instead"
+		[ -z "$refhead" ] && _error "Invalid reference given, ref can be either a branch name, tag, git hash or HEAD"
+		[ -z "$(git svn find-rev $refhead)" ] && _error "$ref is not a SVN commit, please use \"git cherry-pick $ref\" instead"
 		
 		# use %B instead of %s%n%b
 		# requires git version gt 1.7
@@ -669,22 +705,23 @@ function svn_cherry_pick()
 
 }
 
-function error()
+function _usage()
 {
-	if [ -n "$1" ]
-	then
-		echo "Error: $1"
-		echo
-	fi
 	echo "Usage: git mig33 -h|help|?"
 	echo "Usage: git mig33 edit|-e|eclipse                 # edit this script"
 #	echo "Usage: git mig33 clone|init [repo_name]          # clone git svn repo"
 	echo "Usage: git mig33 branch                          # Show upstream/downstream stats"
 	echo "Usage: git mig33 branch last [<limit>]           # list SVN branches sorted by last updated"
-	echo "Usage: git mig33 scp/stage <remote> [ref|file..] # scp and stage your files to specified remote"
+	echo "Usage: git mig33 scp|stage <remote> [ref|file..] # scp and stage your files to specified remote"
 #	echo "Usage: git mig33 remote cleanup <remote>         # reverse prune, deletes remote non SVN branch"
 #	echo "Usage: git mig33 remote missing <remote>         # SVN branches missing from remote"
+	echo "Usage: git mig33 remote                          # show remote status relative to HEAD"
+	echo "Usage: git mig33 upstream|up [<ref>]             # find upstream branch"
+	echo "Usage: git mig33 scp|stage <remote> [<ref>]      # show diff relative to <ref> and upload unstaged files to <remote>"
 	echo "Usage: git mig33 show [-dhj]                     # -d:unpushed -h:hash-only -j:jira-only"
+	echo "Usage: git mig33 rebase --all                    # stash + svn fetch + rebase all branches"
+	echo "Usage: git mig33 cherry-pick|cp [<ref>..]        # customized cherry-pick for SVN"
+	echo "Usage: git mig33 trac|tracf [<ref>..]            # generate Trac link"
 	echo
 	echo "Usage: git qa info [-limit]                      # list last RC tags or maintenance branch"
 	echo "Usage: git qa graph [-limit]                     # show QA graph"
@@ -695,64 +732,66 @@ function error()
 	echo
 	echo "Deprecated commands:"
 	echo "Usage: git mig33 log [branch]                    # log of current SVN branch"
-	echo "Usage: git qa rc [new [QAT]]"                    # Create new SVN branch
-	echo "Usage: git qa tag [REL_8.XX]"                    # Generate create new SVN tag command
-	echo "Usage: git qa rebase"                            # Run git qa merge to rebase from RC
+	echo "Usage: git qa rc [new [QAT]]                     # Create new SVN branch"
+	echo "Usage: git qa build                              # Run ant build"
+	echo "Usage: git qa tag [REL_8.XX]                     # Generate create new SVN tag command"
+	echo "Usage: git qa rebase                             # Run git qa merge to rebase from RC"
+
+	case $1 in
+		-v|verbose|--verbose) grep -A100 '^#* OPTIONS #*$' $0;;
+	esac
 	exit
 }
 
+function _error()
+{
+	[ $# -eq 0 ] && _usage && exit 0
+
+	echo
+	echo ERROR: "$@"
+	echo
+	exit 1
+}
+
+### OPTIONS ###
 case $1 in
-	''|-h|?|help|--help)  error;;
+	''|-h|?|help|--help)  shift; _usage $@;;
 	edit|-e)              vim $0;;
 	eclipse)              open -a /Applications/eclipse_indigo/Eclipse.app/ $0;;
-	branch|br)
-		shift; case $1 in
-			last)         shift; active_branch_from_log $@;;
-			*)            show_branch_status;;
-		esac;;
-	upstream|up)             shift; get_git_svn_branch $@;;
+	branch|br)            shift; case $1 in
+		last)             shift; active_branch_from_log $@;;
+		*)                show_branch_status;;
+		                  esac;;
+	upstream|up)          shift; get_git_svn_branch $@;;
 	info|release)         shift; latest_rc_tags $@;;
-	tag|tags|rc)          error;; #reserved
+	tag|tags|rc)          _usage;; #reserved
 	clone|init)           init_git_svn_repo $@;;
-	remote)
-		shift; case $1 in
-			cleanup)      shift; delete_non_svn_branches_from_remote $@;;# Destructive
-			missing)      shift; missing_remote_branches $@;;
-		esac;;
+	remote)               shift; case $1 in
+		cleanup)          shift; delete_non_svn_branches_from_remote $@;;# Destructive
+		missing)          shift; missing_remote_branches $@;;
+		*)                show_remote_status $@;;
+		                  esac;;
 	show)                 shift; show_log $@;;
 	log)                  shift; svn_branch_log $@;;
 	scp|stage)            shift; scp_and_stage $@;;
-	rebase)				  shift; gitsvnrebase $@;;
+	rebase)               shift; gitsvnrebase $@;;
 	trac)                 shift; generate_trac_link $@;;
-	tracf)                shift;
-		echo $(
-			generate_trac_link $1
-		) $(
-			git config svn-remote.svn.branches | cut -d: -f1 | cut -d/ -f1,2
-		) $(
-			get_git_svn_branch $1
-		) $2 | tr \  /
-		;;		
+	tracf)                shift; generate_trac_link_with_file $@;;
 	cherry-pick|cp)       shift; svn_cherry_pick $@;;
-	qa)
-		shift; case $1 in
-			unmerged)
-				shift; case $1 in
-					'') non_release_jira;;
-					*)  jira_release_tracking $@;;
-				esac;;
-			graph)        shift; show_graph $@;;
-			merge)        shift; gitsvnmerge $@;;
-			blame)        shift; blame_during_merge_conflicts $@;;
-			push|dcommit) shift; push_remote $@;;
-			rc)           shift; create_rc $@;;# Destructive
-			tag)          shift; create_tag $@;;# Destructive
-			rebase)       shift; rebase_trunk $@;;# Destructive
-			build)        shift;
-				cd build && ant && cd ../ &&
-				git commit -a -m "$(git config release.jira): build files for tags/REL_$(guess_new_tag);"
-				;;
-			*)            git mig33 $@;; #error;;
-		esac;;
-	*)                    git svn $@;; #error;;
+	qa)                   shift; case $1 in
+		unmerged)         shift; case $1 in
+			'')           non_release_jira;;
+			*)            jira_release_tracking $@;;
+			              esac;;
+		graph)            shift; show_graph $@;;
+		merge)            shift; gitsvnmerge $@;;
+		blame)            shift; blame_during_merge_conflicts $@;;
+		push|dcommit)     shift; push_remote $@;;
+		rc)               shift; create_rc $@;;    # Destructive
+		tag)              shift; create_tag $@;;   # Destructive
+		rebase)           shift; rebase_trunk $@;; # Destructive
+		build)            shift; run_ant_build;;
+		*)                git mig33 $@;; #_error;;
+		                  esac;;
+	*)                    git svn $@;; #_error;;
 esac;
