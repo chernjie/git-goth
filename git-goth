@@ -317,6 +317,23 @@ function show_graph()
 	) trunk
 }
 
+function jira_release_tracking()
+{
+	for i in $@
+	do
+		if [ -n "$(git lg --grep $i)" ]
+		then
+			echo $i merged
+		elif [ $(git branch -r | grep -c $i) -eq 0 ] || [ -n "$(git lg --all ^$i --grep $i)" ]
+		then
+			jira-cli --oneline $i
+			git lg --all --grep $i
+		else
+			echo git qa merge $i QAT-519 mergeQA
+		fi
+	done
+}
+
 function error()
 {
 	if [ -n "$1" ]
@@ -333,8 +350,9 @@ function error()
 	echo "Usage: git mig33 remote missing <remote>         # SVN branches missing from remote"
 	echo "Usage: git mig33 show [jira|hash]                # show_non_dcommit_commits"
 	echo
-	echo "Usage: git qa info|release                       # list last RC tags or maintenance branch"
+	echo "Usage: git qa info                               # list last RC tags or maintenance branch"
 	echo "Usage: git qa graph [-limit]                     # show QA graph"
+	echo "Usage: git qa release [jira..]                   # jira release tracking, whether a jira has been merged"
 	echo "Usage: git qa unmerged                           # Resolved JIRA that are not released yet"
 	echo "Usage: git qa merge <branchname> <JIRA#> [message]"
 	echo "Usage: git qa blame [branch] [limit=1]"
@@ -379,6 +397,7 @@ case $1 in
 		shift; case $1 in
 			unmerged)     non_release_jira;;
 			graph)        shift; show_graph $@;;
+			release)      shift; jira_release_tracking $@;;
 			merge)        shift; gitsvnmerge $@;;
 			blame)        shift; blame_during_merge_conflicts $@;;
 			push|dcommit) shift; push_remote $@;;
