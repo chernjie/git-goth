@@ -114,7 +114,7 @@ function push_remote()
 	echo
 	echo "Backing up .git/svn to Scripts folder..."
 	echo
-	repo_name=$(git config -l | grep svn.fetch | cut -d= -f2 | cut -d/ -f1)
+	repo_name=$(git config svn-remote.svn.fetch | cut -d/ -f1)
 	rsync -rt .git/svn ~/mig33/Scripts/git-tools/.rev_map/$repo_name
 	cd ~/mig33/Scripts
 	git add -f git-tools/.rev_map/$repo_name
@@ -309,11 +309,11 @@ function error()
 	echo "Usage: git mig33 -h|help|?"
 	echo "Usage: git mig33 edit|-e|eclipse                 # edit this script"
 	echo "Usage: git mig33 clone|init [repo_name]          # clone git svn repo"
-	echo "Usage: git mig33 branch|tags|tags [last] <limit> # list SVN branches sorted by last updated"
+	echo "Usage: git mig33 branch [info] <limit>           # list SVN branches sorted by last updated"
 	echo "Usage: git mig33 fetch|pull|rebase <remote>      # update local SVN to remote"
 	echo "Usage: git mig33 remote cleanup <remote>         # reverse prune, deletes remote non SVN branch"
 	echo "Usage: git mig33 remote missing <remote>         # SVN branches missing from remote"
-	echo "Usage: git mig33 show [jira]                     #show_non_dcommit_commits"
+	echo "Usage: git mig33 show [jira]                     # show_non_dcommit_commits"
 	echo "Usage: git qa unmerged                           # Resolved JIRA that are not released yet"
 	echo "Usage: git qa merge <branchname> <JIRA#> [message]"
 	echo "Usage: git qa blame [branch] [limit=1]"
@@ -331,11 +331,12 @@ case $1 in
 	eclipse)              open -a /Applications/eclipse_indigo/Eclipse.app/ $0;;
 	branch)
 		shift; case $1 in
-			last|latest|release|tags|rc|maintenance)
+			info|last|latest|release|tags|rc|maintenance)
 			              latest_rc_tags;;
 			*)            active_branch_from_log $@;;
 		esac;;
-	tag|tags)             latest_rc_tags;;
+	info|release)         latest_rc_tags;;
+	tag|tags|rc)          error;; #reserved
 	clone|init)           shift; clone_git_svn_repo $@;;
 	fetch|pull|rebase)    shift; pull_remote $@;;
 	remote)
@@ -352,7 +353,7 @@ case $1 in
 			blame)        shift; blame_during_merge_conflicts $@;;
 			push|dcommit) shift; push_remote $@;;
 			create)       shift; create_rc $@;;
-			*)            error;;
+			*)            git mig33 $@;; #error;;
 		esac;;
-	*)                    git $@;;#error;;
+	*)                    git svn $@;; #error;;
 esac;
