@@ -284,7 +284,7 @@ function hash2jira()
 	for i in $@
 	do
 		git show $i --relative="#" --format="%h $(
-			git svn find-rev $i
+			git svn find-rev $i | sed -E 's#([0-9]+)#r\1#'
 		) $(
 			git show $i --format=%B --shortstat | _listjira | grep -v QAT | xargs echo
 		)" | grep -v ^$
