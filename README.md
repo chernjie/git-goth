@@ -1,9 +1,9 @@
+<img src="https://raw.github.com/mig33/git-goth/master/goth_day_smiley.png" alt="Goth Day Smiley" style="float:right;" width="200" />
+
 git-goth
 ========
 
 GIT-SVN Extension, several convenience functions to help with release/merges/feature management etc.
-
-<img src="https://raw.github.com/mig33/git-goth/master/goth_day_smiley.png" alt="Goth Day Smiley" width="50%"/>
 
 Usage
 =====
