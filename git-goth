@@ -576,7 +576,7 @@ function gitsvnrebase()
 			echo "Usage: ${0##/*/} --all"
 			echo "Usage: all refers to current branch and with a --fetch-all option"
 			echo "Example: ${0##/*/} l_trunk l_sprint"
-			git mig33 branch status
+			show_branch_status
 			exit
 			;;
 		--all|all|--fetch-all) shift;
