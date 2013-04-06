@@ -328,6 +328,8 @@ case $1 in
 		esac;;
 	show)                 shift; show_non_dcommit_commits $@;;
 	reflog)               shift; reflog $@;;
+	scp)				  shift; gitwebscp $@;;
+	rebase)				  shift; gitsvnrebase $@;;
 	qa)
 		shift; case $1 in
 			unmerged)     non_release_jira;;
