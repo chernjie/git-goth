@@ -629,11 +629,14 @@ function show_branch_status
 	# unpushed local branches
 	#
 	( echo Branch Ref Upstream Ahead
-	for i in $(git branch | tr -d "* ")
+	git for-each-ref refs/heads --format='%(refname:short) %(objectname:short) %(upstream)' |
+	while read entry
 	do
-		git rev-list --left-right --count $(get_git_svn_branch $i)...$i |
-			xargs echo $i $(git rev-parse --short $i)
+		i=($entry)
+		git rev-list --left-right --count ${i[2]}...${i[0]} |
+			xargs echo ${i[0]} ${i[1]}
 	done ) | column -t
+	return
 }
 
 function generate_trac_link()
