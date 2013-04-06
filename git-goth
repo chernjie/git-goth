@@ -309,7 +309,7 @@ function error()
 	echo
 	echo "Deprecated or useless commands:"
 	echo "Usage: git mig33 reflog                          # log of current SVN branch"
-	echo "Usage: git qa rc [new] [RC_BRANCH] [QAT]"
+	echo "Usage: git qa rc [new [QAT]]"
 	exit
 }
 
