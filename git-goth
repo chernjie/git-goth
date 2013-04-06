@@ -163,7 +163,7 @@ function push_remote()
 	# all_branches=$(git branch -r | tr -d \ | grep -v ^$(git remote | implode "|"))
 	for i in $branches_to_push
 	do
-		echo master:$i
+		echo $(git rev-list -1 --reverse HEAD):$i
 	done | xargs git push $remote
 	for i in $branches_to_push
 	do
