@@ -17,35 +17,42 @@ function get_svn_branch()
 {
 	# git-ref
 	[ $# -gt 0 ] || set -- HEAD
+	
+	local svn_remote="$(git config --get-regexp svn-remote.*\.url | cut -d' ' -f1 | sed 's#\.url$##')"
+	if [ -z "$svn_remote" ]
+	then
+		for i do
+			echo "@{upstream}"
+		done
+		return
+	fi
+	
+	for i in $svn_remote
+	do
+		svn_url_pattern+="|$(
+			git config $i.url
+		)/?$(
+			git config $i.fetch | cut -d: -f1 | sed 's#trunk##'
+		)"
+	done
+	svn_url_pattern="${svn_url_pattern#?}"
+	
 	for i in $@
 	do
 		git log -1 --pretty=format:"%s%n%b" --first-parent --grep=git-svn-id $i |
-			grep -oE '(branches/|tags/)?[^/]+@' --color=never |
-			tr -d "@"
+			grep git-svn-id |
+			cut -d' ' -f2 |
+			sed -E "{
+				s#$svn_url_pattern##
+				s#@.*##
+				s/^$/${GIT_SVN_ID:-git-svn}/
+			}"
 	done
 }
 
 function get_git_svn_branch()
 {
-	get_svn_branch $@ | grep -oE '(tags/)?[^/]+$' --color=never
-}
-
-function find_upstream()
-{
-	if [[ -z "$(
-		git config --get-regexp 'svn-remote.*url$'
-	)" ]]
-	then
-		echo "@{upstream}"
-	elif [[ -z "$(
-		git config --get-regexp 'svn-remote.*(fetch|tags|branches)$' | cut -d' ' -f2 | cut -d: -f1
-	)" ]]
-	then
-		# default branch name for checkouts with no layout:
-		echo ${GIT_SVN_ID:-git-svn}
-	else
-		get_git_svn_branch $@
-	fi
+	get_svn_branch $@ | sed 's#^branches/##'
 }
 
 function active_branch_from_log()
@@ -421,7 +428,7 @@ case $1 in
 			              shift; latest_rc_tags $@;;
 			*)            active_branch_from_log $@;;
 		esac;;
-	upstream)             shift; find_upstream $@;;
+	upstream)             shift; get_git_svn_branch $@;;
 	info|release)         shift; latest_rc_tags $@;;
 	tag|tags|rc)          error;; #reserved
 	clone|init)           init_git_svn_repo $@;;
