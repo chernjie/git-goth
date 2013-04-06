@@ -13,6 +13,21 @@ function latest_rc_tags()
 	done #List latest RC and tags
 }
 
+function get_svn_branch()
+{
+	# $1 git-ref
+	git log $1 --pretty=format:"%B" |
+		grep git-svn-id |
+		head -1 |
+		grep -oE '(branches/|tags/)?[^/]+@' --color=never |
+		tr -d "@"
+}
+
+function get_git_svn_branch()
+{
+	get_svn_branch $1 | grep -oE '(tags/)?[^/]+$' --color=never
+}
+
 function active_branch_from_log()
 {
 	case $1 in
@@ -21,7 +36,7 @@ function active_branch_from_log()
 	esac
 	
 	git log --all --format="%d" |
-		sed -E "s#\(|,|\)##g" |
+		tr "(,)" " " |
 		xargs printf "%s\n" |
 		grep -vE "^$(
 			git remote | implode "/|^"
@@ -33,14 +48,14 @@ function active_branch_from_log()
 
 function reflog()
 {
-	#WIP
-	git lg --first-parent --since="$(
-		git log -1 --pretty=format:"%ad" $(
-			git reflog $(
-				git svn info | grep URL | grep -oE "(tags/)?[^/]+\$" --color=never
-				) | cut -d " " -f 1 | tail -1
-			)
-		)" #List total new commits in maintenance branch
+	#####
+	# List total new commits in specified ref
+	#
+	git lg --first-parent $(
+		get_git_svn_branch $1 |
+			xargs git reflog |
+			cut -d" " -f1 | tail -1
+	)..$1
 }
 
 function non_release_jira()
@@ -191,8 +206,7 @@ function create_rc()
 			i=$(latest_rc_tags | grep RC | grep -oE '\.[0-9]+' --color=never | tr -d \.)
 			RC_BRANCH=$(latest_rc_tags | grep RC | sed "s#$i#$((1+$i))#")
 			[ $(echo $1 | grep -cE '[A-Z]+\-[0-9]+') -eq 1 ] || error "Invalid QAT number"
-			git config --unset release.jira
-			git config --add release.jira $1
+			git config release.jira $1
 			JIRA="$(git config release.jira)";
 			echo "git checkout master"
 			echo "git reset --hard trunk"
@@ -251,7 +265,7 @@ function show_log()
 		hash2jira $@ $unpushed
 	elif [ -n "$jiraonly" ]
 	then
-		git show --relative="#" $@ $hashonly $jiraonly $unpushed | _listjira | xargs echo
+		git show --relative="#" $@ $hashonly $jiraonly $unpushed | _listjira | grep -v QAT | xargs echo
 	else
 		git show --relative="#" $@ $hashonly $jiraonly $unpushed
 	fi
@@ -259,15 +273,7 @@ function show_log()
 
 function _listjira()
 {
-	grep -oE "[A-Z]+\-[0-9]+" --color=never |
-		grep -v QAT |
-		sort -u
-}
-
-function _listjiraQAT()
-{
-	grep -oE "[A-Z]+\-[0-9]+" --color=never |
-		sort -u
+	grep -oE "[A-Z]+\-[0-9]+" --color=never | sort -u
 }
 
 function hash2jira()
@@ -277,7 +283,7 @@ function hash2jira()
 		git show $i --relative="#" --format="%h $(
 			git svn find-rev $i
 		) $(
-			git show $i --format=%B --shortstat | _listjira | xargs echo
+			git show $i --format=%B --shortstat | _listjira | grep -v QAT | xargs echo
 		)" | grep -v ^$
 	done
 }
@@ -308,14 +314,12 @@ function blame_during_merge_conflicts()
 			echo $i $(
 				git log -1 --pretty=format:"%an@HEAD:$(
 					git log -1 --pretty=format:"%B" ${list_head[$count]} |
-						_listjiraQAT |
-						implode ","
+						_listjira | implode ","
 				) " ${list_head[$count]}
 			) $(
 				git log -1 --pretty=format:"%an@$LAST_MERGE:$(
 					git log -1 --pretty=format:"%B" ${list_merge[$count]} |
-						_listjiraQAT |
-						implode ","
+						_listjira | implode ","
 				) " ${list_merge[$count]}
 			)
 			count=$(($count + 1))
@@ -325,12 +329,12 @@ function blame_during_merge_conflicts()
 
 function show_graph()
 {
-	git log --graph --decorate --format=%d $@ $(
-		git log --all --format="%d" |
-			sed -E "s#\(|,|\)##g" |
-			xargs printf "%s\n" |
-			grep -E "^(tags/)?([0-9]|REL_)" --color=never
-	) trunk
+	git log --all --pretty=format:"%d" |
+		tr "(,)" " " |
+		xargs printf "%s\n" |
+		grep -E "^(tags/)?([0-9]|REL_)" --color=never |
+		git log --stdin --graph --decorate --pretty=format:"%d" $@ trunk
+		# | grep -v '*[^(]*$' | less
 }
 
 function jira_release_tracking()
@@ -341,9 +345,11 @@ function jira_release_tracking()
 		then
 			echo $i merged or exist in this tree
 		elif [ $(git branch -r | grep -c $i) -eq 0 ] ||
-			[ -n "$(git lg --all ^$i HEAD $(
-				git branch | grep mergeQA --color=never | tr -d " *" | xargs printf "^%s\n"
-			) --grep $i)" ]
+			[ -n "$(
+				git branch | grep mergeQA --color=never |
+					tr -d " *" | xargs printf "^%s\n" |
+					git lg --stdin --all --grep $i ^$i HEAD
+			)" ]
 		then
 			jira-cli --oneline $i
 			git lg --all --grep $i
@@ -351,7 +357,7 @@ function jira_release_tracking()
 			if [ -z "$(git config release.jira)" ]
 			then
 				error "release.jira doesn't exist, try:
-				git config --add release.jira QAT-XXX"
+				git config release.jira QAT-XXX"
 			fi
 			echo git qa merge $i $(git config release.jira) mergeQA
 		fi
@@ -380,9 +386,9 @@ function error()
 	echo "Usage: git qa blame [branch] [limit=1]"
 	echo "Usage: git qa push|dcommit <remote>              # Please do not use this!!! update local SVN to remote"
 	echo
-	echo "Deprecated or useless commands:"
-	echo "Usage: git mig33 reflog                          # log of current SVN branch"
-	echo "Usage: git qa rc [new [QAT]]"
+	echo "Deprecated commands:"
+	echo "Usage: git mig33 reflog [branch]                 # log of current SVN branch"
+	echo "Usage: git qa rc [new [QAT]]"                    # Create new SVN branch
 	exit
 }
 
