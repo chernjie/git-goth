@@ -4,7 +4,7 @@ function latest_rc_tags()
 {
 	for i in "^maintenance_2012.." "^REL_.*_RC\$" "^tags/REL_.*\$"
 	do
-		git branch -r | tr -d \ | grep -E "$i" | tail -1
+		git branch -r | tr -d \ | grep -E "$i" --color=never | tail -1
 	done #List latest RC and tags
 }
 
@@ -143,19 +143,24 @@ SVN_REV_MAP_URL="$(printf $SVN_URL "Scripts/git-tools/.rev_map/%s/svn")"
 SVN_REV_MAP_REV=37800
 GIT_URL="git@frankie.indydevs.org:mig33/%s.git"
 REMOTE_ORIGIN=mig33
-function clone_git_svn_repo()
+function init_git_svn_repo()
 {
-	case $1 in
-		'') error "Repository name required, e.g. login.mig33.com";;
-		*)  repo_name=$1;;
-	esac
 	case $2 in
+		'') error "Repository name required, e.g. login.mig33.com";;
+		*)  repo_name=$2;;
+	esac
+	case $3 in
 		'') git_repo_name=$(echo $repo_name | tr '.' '_');;
-		*)  git_repo_name=$2;;
+		*)  git_repo_name=$3;;
+	esac
+	case $1 in
+		clone)
+			mkdir $repo_name
+			cd $repo_name;;
+		init) ;;
+		*) error "Clone or init only..."
 	esac
 	
-	mkdir $repo_name
-	cd $repo_name
 	git svn init --stdlayout "$(printf $SVN_URL $repo_name)"
 	git remote add $REMOTE_ORIGIN "$(printf $GIT_URL $git_repo_name)"
 	git fetch $REMOTE_ORIGIN
@@ -205,13 +210,21 @@ function delete_non_svn_branches_from_remote()
 
 function create_rc()
 {
-	RC_BRANCH="$1"
-	shift
+	case $1 in
+		'') RC_BRANCH=$(latest_rc_tags | grep _RC --color=never);;
+		new)
+			shift;
+			[ $# -ge 2 ] || error "Missing argument RC_BRANCH and JIRA"
+			RC_BRANCH="$1";
+			JIRA="$2";
+			echo "git checkout master"
+			echo "git reset --hard trunk"
+			echo "git svn branch $RC_BRANCH -m \"$JIRA: new RC branches/$RC_BRANCH\""
+			error "Command not completed yet";;
+		REL_[0-9.]*_RC) RC_BRANCH="$1"; shift;;
+		*) error "the given/current RC branch does not follow RC convention (e.g. REL_*_RC): $RC_BRANCH";;
+	esac
 	
-	if [ -z "$RC_BRANCH" ]
-	then
-		RC_BRANCH=$(git svn info | grep URL | grep -oE '(tags/)?[^/]+$' --color=never)
-	fi
 	RC_NUMBER=$(echo $RC_BRANCH | grep -oE '[0-9\.]+' --color=never | sed 's#\.##')
 	
 	if [ $(echo $RC_BRANCH | grep -c -E '^REL_[0-9\.]+_RC$') -lt 1 ]
@@ -314,6 +327,8 @@ function error()
 	echo "Usage: git mig33 remote cleanup <remote>         # reverse prune, deletes remote non SVN branch"
 	echo "Usage: git mig33 remote missing <remote>         # SVN branches missing from remote"
 	echo "Usage: git mig33 show [jira]                     # show_non_dcommit_commits"
+	echo
+	echo "Usage: git qa info|release                       # list last RC tags or maintenance branch"
 	echo "Usage: git qa unmerged                           # Resolved JIRA that are not released yet"
 	echo "Usage: git qa merge <branchname> <JIRA#> [message]"
 	echo "Usage: git qa blame [branch] [limit=1]"
@@ -321,7 +336,7 @@ function error()
 	echo
 	echo "Deprecated or useless commands:"
 	echo "Usage: git mig33 reflog                          # log of current SVN branch"
-	echo "Usage: git qa create [RC_BRANCH]"
+	echo "Usage: git qa rc [new] [RC_BRANCH] [QAT]"
 	exit
 }
 
@@ -337,7 +352,7 @@ case $1 in
 		esac;;
 	info|release)         latest_rc_tags;;
 	tag|tags|rc)          error;; #reserved
-	clone|init)           shift; clone_git_svn_repo $@;;
+	clone|init)           init_git_svn_repo $@;;
 	fetch|pull|rebase)    shift; pull_remote $@;;
 	remote)
 		shift; case $1 in
@@ -352,7 +367,7 @@ case $1 in
 			merge)        shift; gitsvnmerge $@;;
 			blame)        shift; blame_during_merge_conflicts $@;;
 			push|dcommit) shift; push_remote $@;;
-			create)       shift; create_rc $@;;
+			rc)           shift; create_rc $@;;
 			*)            git mig33 $@;; #error;;
 		esac;;
 	*)                    git svn $@;; #error;;
