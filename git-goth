@@ -1,0 +1,358 @@
+#!/bin/bash
+
+function latest_rc_tags()
+{
+	for i in "^maintenance_2012.." "^REL_.*_RC\$" "^tags/REL_.*\$"
+	do
+		git branch -r | tr -d \ | grep -E "$i" | tail -1
+	done #List latest RC and tags
+}
+
+function active_branch_from_log()
+{
+	case $1 in
+		[0-9]*) count=$1;;
+		*) count=20;;
+	esac
+	
+	git log --all --format="%d" |
+		sed -E "s#\(|,|\)##g" |
+		xargs printf "%s\n" |
+		grep -vE "^$(
+			git remote | implode "/|^"
+		)/|^$(
+			git branch | tr -d \*\ | implode "|^"
+		)|^HEAD|^refs/stash" |
+		head -$count
+}
+
+function reflog()
+{
+	#WIP
+	git lg --first-parent --since="$(
+		git log -1 --pretty=format:"%ad" $(
+			git reflog $(
+				git svn info | grep URL | grep -oE "(tags/)?[^/]+\$" --color=never
+				) | cut -d " " -f 1 | tail -1
+			)
+		)" #List total new commits in maintenance branch
+}
+
+function non_release_jira()
+{
+	jira-cli --oneline WTF-1 #> /dev/null 2>&1
+
+	#####
+	# Find non-release jiras from all branches
+	#
+	for i in $(
+		git branch -r | tr -d \ | grep -E "[A-Z]+\-[0-9]+" --color=never | grep -vE "^$(
+			git remote | implode "/|^"
+		)/"
+	)
+	do
+		git log --pretty=format:"%at $i %an http://jira.projectgoth.com/browse/$(
+			echo $i | grep -oE "[A-Z]+\-[0-9]+" --color=never
+		) $(
+			jira-cli $(
+				echo $i | grep -oE "[A-Z]+\-[0-9]+" --color=never | grep -v QAT
+			) --format="[%status]" | tr " " _
+		)%n" -1 $i
+	done | column -t | sort -rn | grep -v '\[Closed\]' | grep -v '\[Open\]'
+
+	#####	
+	# Find non-release jiras from maintenance branch
+	#
+	time for i in $(
+		git reflog $(
+			git branch -r | tr -d \ | grep ^maintenance_2012 --color=never | tail -1
+		) | cut -d " " -f 1
+	)
+	do 
+		git log -1 --pretty=format:"%s" $i | grep -oE "[A-Z]+\-[0-9]+" --color=never
+	done | sort -u | xargs jira-cli --oneline | grep -v Closed
+}
+
+function set_remote()
+{
+	remote=$1
+	if [ $(git remote | grep -c ^$remote$) -eq 0 ]
+	then
+		echo "Remote $remote does not exist in your git config"
+		exit
+	fi
+}
+
+function push_remote()
+{
+	set_remote $1
+	
+	[ -d ~/mig33/Scripts ] || error "Missing resource ~/mig33/Scripts"
+	
+	echo
+	echo "Pushing fresh repo to gitorious..."
+	echo
+	branches_to_push=$(missing_remote_branches $remote)
+	# all_branches=$(git branch -r | tr -d \ | grep -v ^$(git remote | implode "|"))
+	for i in $branches_to_push
+	do
+		echo master:$i
+	done | xargs git push $remote
+	for i in $branches_to_push
+	do
+		echo $i:$i
+	done | xargs git push $remote -f trunk:master
+	
+	echo
+	echo "Updating gitorious from SVN..."
+	echo
+	for i in $(active_branch_from_log)
+	do
+		echo "refs/remotes/$i:$i"
+	done | xargs git push $remote
+	
+	echo
+	echo "Backing up .git/svn to Scripts folder..."
+	echo
+	repo_name=$(git config -l | grep svn.fetch | cut -d= -f2 | cut -d/ -f1)
+	rsync -rt .git/svn ~/mig33/Scripts/git-tools/.rev_map/$repo_name
+	cd ~/mig33/Scripts
+	git add -f git-tools/.rev_map/$repo_name
+	git commit -m "WTF-13: backup .git/svn for $repo_name"
+	#git svn dcommit
+}
+
+function pull_remote()
+{
+	set_remote $1
+	
+	echo
+	echo "Pulling repo from gitorious..."
+	echo
+	git fetch $remote
+	
+	echo
+	echo "Pulling SVN rev_map from SVN..."
+	echo
+	cd .git/svn
+	git svn rebase --all
+}
+
+SVN_URL="https://svn.projectgoth.com/svn/Mig33/%s"
+SVN_REV_MAP_URL="$(printf $SVN_URL "Scripts/git-tools/.rev_map/%s/svn")"
+SVN_REV_MAP_REV=37800
+GIT_URL="git@frankie.indydevs.org:mig33/%s.git"
+REMOTE_ORIGIN=mig33
+function clone_git_svn_repo()
+{
+	case $1 in
+		'') error "Repository name required, e.g. login.mig33.com";;
+		*)  repo_name=$1;;
+	esac
+	case $2 in
+		'') git_repo_name=$(echo $repo_name | tr '.' '_');;
+		*)  git_repo_name=$2;;
+	esac
+	
+	mkdir $repo_name
+	cd $repo_name
+	git svn init --stdlayout "$(printf $SVN_URL $repo_name)"
+	git remote add $REMOTE_ORIGIN "$(printf $GIT_URL $git_repo_name)"
+	git fetch $REMOTE_ORIGIN
+	git reset --hard $REMOTE_ORIGIN/trunk
+	cd .git/svn
+	git svn init "$(printf $SVN_REV_MAP_URL $repo_name)"
+	git svn fetch --all -r $SVN_REV_MAP_REV:HEAD
+	cd ../../
+	git svn info
+}
+
+function missing_remote_branches()
+{
+	set_remote $1
+	
+	#####
+	# list of SVN branches that are not available on gitorious
+	#
+	for i in $(active_branch_from_log $2)
+	do
+		if [ $(git branch -r | tr -d \ | grep -cE "^$remote/$i\$") -eq 0 ]
+		then
+			echo $i
+		fi
+	done
+}	
+
+function delete_non_svn_branches_from_remote()
+{
+	set_remote $1
+	
+	#####
+	# delete gitorious merge branches
+	#
+	git branch -r | tr -d \ |
+		grep -E "^$remote/" --color=never |
+		sed -E "s#^$remote/##" |
+		grep -vE "^$(
+			git branch -r | tr -d \ |
+				grep -vE "^$(
+					git remote | implode "/|^"
+				)/" | implode "|^"
+			)" |
+		grep -v master |
+		xargs git push --delete $remote
+}
+
+function create_rc()
+{
+	RC_BRANCH="$1"
+	shift
+	
+	if [ -z "$RC_BRANCH" ]
+	then
+		RC_BRANCH=$(git svn info | grep URL | grep -oE '(tags/)?[^/]+$' --color=never)
+	fi
+	RC_NUMBER=$(echo $RC_BRANCH | grep -oE '[0-9\.]+' --color=never | sed 's#\.##')
+	
+	if [ $(echo $RC_BRANCH | grep -c -E '^REL_[0-9\.]+_RC$') -lt 1 ]
+	then
+		error "the given/current RC branch does not follow RC convention (e.g. REL_*_RC): $RC_BRANCH"
+	elif [ $(git branch -a | grep -c $RC_BRANCH) -lt 1 ]
+	then
+		error "the given RC branch does not exist in your git index,
+		run
+			git svn rebase --all
+		or
+		run (from trunk)
+			git svn branch $RC_BRANCH -m 'JIRA: new branches/$RC_BRANCH'"
+	fi
+	
+	if [ $(git branch | grep -c rel$RC_NUMBER) -lt 1 ]
+	then
+		git checkout $RC_BRANCH -b rel$RC_NUMBER
+	else
+		git checkout rel$RC_NUMBER
+	fi
+	
+	git branch -D mergeQA_$RC_NUMBER
+	git checkout $RC_BRANCH -b mergeQA_$RC_NUMBER
+}
+
+function show_non_dcommit_commits()
+{
+	_TEMP=tempfile.tmp
+
+	DIFFTREE=$(git svn dcommit --dry-run | grep diff)
+	HASHES=$(for i in $DIFFTREE; do echo $i | grep -v diff | grep -v '~'; done;)
+	for i in $HASHES
+	do
+		git show $i --pretty=format:'====%n%B' --shortstat >> $_TEMP
+	done
+	
+	if [ -f "$_TEMP" ]
+	then
+		if [ "jira" = "$1" ]
+		then
+			cat $_TEMP | grep -oE '[A-Z]+\-[0-9]+' --color=never | grep -v QAT | sort -u | implode ' '
+		else
+			cat $_TEMP
+		fi
+		
+		rm $_TEMP
+	else
+		error "No mergeQA commits."
+	fi
+}
+
+function blame_during_merge_conflicts()
+{
+	if [ -n "$1" ] && ! [ $1 -ge 0 2>/dev/null ] && [ $(git branch -a | grep -c $1) -gt 0 ]
+	then
+		LAST_MERGE=$1
+		shift
+	elif [ -f $LAST_MERGE_FILE ]
+	then
+		LAST_MERGE=$(git config mergeQA.$(git name-rev --name-only HEAD).last)
+	else
+		error "Source Branchname required"
+	fi
+	
+	limit=1
+	if [ $1 -ge 0 2>/dev/null ]
+	then
+		limit=$1
+		shift
+	fi
+	
+	# error "LAST_MERGE $LAST_MERGE limit $limit"
+	
+	_TEMP=tempfile.tmp
+	for i in $(git diff --name-only | uniq)
+	do
+		for j in $(git name-rev --name-only HEAD) $LAST_MERGE
+		do
+			_jira_list="$(git log -1 --pretty=format:"%s" $j $i | grep -oE "[A-Z]+-[0-9]+" --color=never | sort -u | implode ",")"
+			git log -1 --pretty=format:"%an@$j($_jira_list) " $j $i
+		done > $_TEMP
+		echo $i $(cat $_TEMP)
+		rm $_TEMP
+	done | column -t
+}
+
+function error()
+{
+	if [ -n "$1" ]
+	then
+		echo "Error: $1"
+		echo
+	fi
+	echo "Usage: git mig33 -h|help|?"
+	echo "Usage: git mig33 edit|-e|eclipse                 # edit this script"
+	echo "Usage: git mig33 clone|init [repo_name]          # clone git svn repo"
+	echo "Usage: git mig33 branch|tags|tags [last] <limit> # list SVN branches sorted by last updated"
+	echo "Usage: git mig33 fetch|pull|rebase <remote>      # update local SVN to remote"
+	echo "Usage: git mig33 remote cleanup <remote>         # reverse prune, deletes remote non SVN branch"
+	echo "Usage: git mig33 remote missing <remote>         # SVN branches missing from remote"
+	echo "Usage: git mig33 show [jira]                     #show_non_dcommit_commits"
+	echo "Usage: git qa unmerged                           # Resolved JIRA that are not released yet"
+	echo "Usage: git qa merge <branchname> <JIRA#> [message]"
+	echo "Usage: git qa blame [branch] [limit=1]"
+	echo "Usage: git qa push|dcommit <remote>              # Please do not use this!!! update local SVN to remote"
+	echo
+	echo "Deprecated or useless commands:"
+	echo "Usage: git mig33 reflog                          # log of current SVN branch"
+	echo "Usage: git qa create [RC_BRANCH]"
+	exit
+}
+
+case $1 in
+	''|-h|help|?)         error;;
+	edit|-e)              vim $0;;
+	eclipse)              open -a /Applications/eclipse_indigo/Eclipse.app/ $0;;
+	branch)
+		shift; case $1 in
+			last|latest|release|tags|rc|maintenance)
+			              latest_rc_tags;;
+			*)            active_branch_from_log $@;;
+		esac;;
+	tag|tags)             latest_rc_tags;;
+	clone|init)           shift; clone_git_svn_repo $@;;
+	fetch|pull|rebase)    shift; pull_remote $@;;
+	remote)
+		shift; case $1 in
+			cleanup)      shift; delete_non_svn_branches_from_remote $@;;
+			missing)      shift; missing_remote_branches $@;;
+		esac;;
+	show)                 shift; show_non_dcommit_commits $@;;
+	reflog)               shift; reflog $@;;
+	qa)
+		shift; case $1 in
+			unmerged)     non_release_jira;;
+			merge)        shift; gitsvnmerge $@;;
+			blame)        shift; blame_during_merge_conflicts $@;;
+			push|dcommit) shift; push_remote $@;;
+			create)       shift; create_rc $@;;
+			*)            error;;
+		esac;;
+	*)                    git $@;;#error;;
+esac;
