@@ -591,6 +591,7 @@ function gitsvnrebase()
 	esac
 
 	local has_changes=`git stash save $0 | grep -c $0`
+	local current_branch=$(git name-rev --name-only HEAD)
 
 	echo git svn fetch --all
 	git svn fetch --all
@@ -607,8 +608,13 @@ function gitsvnrebase()
 			echo -e "$i: \033[31m${_delta[1]} uncommitted change(s)... ${_delta[0]} upstream, rebase skipped\033[0m"
 		elif [ ${_delta[0]} -gt 0 ]
 		then
-			echo Fast-forwarded $i to branches/$_u
-			git branch -f $i $_u
+			if [ $i = $current_branch ]
+			then
+				git rebase $_u
+			else
+				echo Fast-forwarded $i to branches/$_u
+				git branch -f $i $_u
+			fi
 		fi
 	done
 
