@@ -37,7 +37,7 @@ function get_svn_branch()
 		then
 			git config branch.$1.merge
 		else
-			echo $(git config branch.$1.remote)/$(git config branch.$1.merge)
+			echo $(git config branch.$1.remote)/$(git config branch.$1.merge | sed $sedRegExp "s#^refs/(remotes|heads)/##")
 		fi
 		return
 	fi
