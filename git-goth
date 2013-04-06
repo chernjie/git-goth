@@ -489,7 +489,8 @@ function error()
 	echo "Usage: git mig33 -h|help|?"
 	echo "Usage: git mig33 edit|-e|eclipse                 # edit this script"
 #	echo "Usage: git mig33 clone|init [repo_name]          # clone git svn repo"
-	echo "Usage: git mig33 branch [info] <limit>           # list SVN branches sorted by last updated"
+	echo "Usage: git mig33 branch                          # Show upstream/downstream stats"
+	echo "Usage: git mig33 branch last [<limit>]           # list SVN branches sorted by last updated"
 	echo "Usage: git mig33 scp/stage <remote> [ref|file..] # scp and stage your files to specified remote"
 #	echo "Usage: git mig33 remote cleanup <remote>         # reverse prune, deletes remote non SVN branch"
 #	echo "Usage: git mig33 remote missing <remote>         # SVN branches missing from remote"
@@ -516,8 +517,8 @@ case $1 in
 	eclipse)              open -a /Applications/eclipse_indigo/Eclipse.app/ $0;;
 	branch)
 		shift; case $1 in
-			--unpushed|status)   shift; show_branch_status $@;;
-			*)            active_branch_from_log $@;;
+			last)         shift; active_branch_from_log $@;;
+			*)            show_branch_status;;
 		esac;;
 	upstream)             shift; get_git_svn_branch $@;;
 	info|release)         shift; latest_rc_tags $@;;
