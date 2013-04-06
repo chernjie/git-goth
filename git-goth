@@ -114,7 +114,7 @@ function non_release_jira()
 		) $(
 			jira-cli $(
 				echo $i | grep -oE "[A-Z]+\-[0-9]+" --color=never | grep -v QAT
-			) --pretty=format:"[%status]" | tr " " _
+			) --format="[%status]" | tr " " _
 		)%n" -1 $i
 	done | column -t | sort -rn | grep -v '\[Closed\]' | grep -v '\[Open\]'
 
