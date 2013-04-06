@@ -289,14 +289,15 @@ function create_rc()
 			git svn branch $RC_BRANCH -m 'JIRA: new branches/$RC_BRANCH'"
 	fi
 	
-	if [ $(git branch | grep -c rel$RC_NUMBER) -lt 1 ]
-	then
+	[ $(git branch | grep -c rel$RC_NUMBER) -lt 1 ] &&
 		git checkout --track $RC_BRANCH -b rel$RC_NUMBER
-	else
-		git checkout rel$RC_NUMBER
-	fi
 	
-	git branch -D mqa$RC_NUMBER
+	# move current to old if exists
+	[ $(git branch | grep -c mqa$RC_NUMBER) -lt 1 ] ||
+		( git branch -M mqa$RC_NUMBER mqa$RC_NUMBER.bak &&
+		git rev-list -1 mqa$RC_NUMBER.bak | xargs echo mqa$RC_NUMBER backed up at )
+
+	# create a new branch
 	git checkout --track $RC_BRANCH -b mqa$RC_NUMBER
 }
 
@@ -534,7 +535,8 @@ function scp_and_stage
 	then
 		_TMP=${0///}
 		echo "$list" > $_TMP &&
-		dos2unix $list &&
+		php_lint $list &&
+		(which dos2unix && dos2unix $list || echo > /dev/null) &&
 		rsync -rlDv --files-from=$_TMP ./ "$(git config remote.$remote.url)/" &&
 		git add $list &&
 		rm $_TMP
@@ -672,6 +674,10 @@ case $1 in
 			rc)           shift; create_rc $@;;# Destructive
 			tag)          shift; create_tag $@;;# Destructive
 			rebase)       shift; rebase_trunk $@;;# Destructive
+			build)        shift;
+				cd build && ant && cd ../ &&
+				git commit -a -m "$(git config release.jira): build files for tags/REL_$(guess_new_tag);"
+				;;
 			*)            git mig33 $@;; #error;;
 		esac;;
 	*)                    git svn $@;; #error;;
