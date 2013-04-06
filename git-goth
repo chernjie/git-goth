@@ -15,10 +15,14 @@ function latest_rc_tags()
 		[0-9]*) limit=-$1;;
 		*)      limit=-1;;
 	esac
-	for i in "^maintenance_2012.." "^REL_.*_RC\$" "^tags/([0-9]|REL_).*\$"
+	for i in "^maintenance_2012.." "^REL_.*_RC\$"
 	do
 		git branch -r | tr -d \ | grep -E "$i" --color=never | tail $limit
 	done #List latest RC and tags
+
+	git branch -r | tr -d \ | grep -E "^tags/([0-9]|REL_).*\$" --color=never |
+		grep '\.' | grep -vE "_RC|Fusion" | # explicit filtering to support fusion
+		tail $limit
 }
 
 function get_svn_branch()
@@ -322,18 +326,19 @@ function php_lint()
 
 function guess_new_tag()
 {
-	lastRCVersion=($(git branch -a |
-		grep -E "remotes/REL_[0-9.]+_RC" |
-		tail -1 |
+	lastRCVersion=($(latest_rc_tags |
+		grep _RC |
 		grep -oE "[0-9]+"
 	))
 
-	lastTagVersion=($(git branch -a |
-		grep remotes/tags | grep '\.' |
-		grep -vE "_RC|Fusion" | # explicit filtering to support fusion
-		tail -1 |
+	lastTagVersion=($(latest_rc_tags |
+		grep tags |
 		grep -oE "[0-9]+"
 	))
+
+	[ ${#lastRCVersion[@]} -eq 0 ] &&
+		echo ${lastTagVersion[0]} $((${lastTagVersion[1]}+1)) | tr " " "." &&
+		return
 
 	[ ${lastRCVersion[0]} -gt ${lastTagVersion[0]} ] &&
 		majorVersion=${lastRCVersion[0]} ||
@@ -362,7 +367,7 @@ function create_tag()
 	SUGGESTION="REL_$(guess_new_tag)"
 
 	# Check file for PHP syntax errors
-	php_lint $(git diff --name-only trunk)
+	php_lint $(latest_rc_tags | grep tags | xargs git diff --name-only)
 
 	case $1 in
 		REL_*) TAG="$1";;
