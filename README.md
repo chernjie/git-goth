@@ -35,3 +35,15 @@ Usage: git qa tag [REL_8.XX]                     # Generate create new SVN tag c
 Usage: git qa rebase                             # Run git qa merge to rebase from RC
 
 ```
+
+Installation
+============
+
+The simplest way is to [download this file](https://raw.github.com/mig33/git-goth/master/git-goth) and place it somewhere your `PATH` recognise.
+
+OR
+
+```
+curl -sk https://raw.github.com/mig33/git-goth/master/git-goth > ~/bin/git-goth
+chmod +x ~/bin/git-goth
+```
