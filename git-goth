@@ -2,6 +2,12 @@
 
 [ $(uname) = "Linux" ] && sedRegExp="-r" || sedRegExp="-E"
 
+COLOR_RED()   { echo -en "\033[31m"; }
+COLOR_GREEN() { echo -en "\033[32m"; }
+COLOR_YELLOW(){ echo -en "\033[33m"; }
+COLOR_BLUE()  { echo -en "\033[34m"; }
+COLOR_RESET() { echo -en "\033[0m";  }
+
 function latest_rc_tags()
 {
 	case $1 in
@@ -290,19 +296,82 @@ function create_rc()
 	git checkout --track $RC_BRANCH -b mqa$RC_NUMBER
 }
 
+# Check file for PHP syntax errors
+# takes a list of filenames
+function php_lint()
+{
+	for i
+	do
+		# check if file exists
+		# check if file ends with ".php"
+		if [ -f "$i" ] && [ "${i: -4}" == ".php" ]
+		then
+			php -l "$i" > /dev/null
+			[ $? -gt 0 ] && error_count[${#error_count[@]}]="$i"
+		fi
+	done
+
+	# syntax check fails, force exit
+	[ ${#error_count[@]} -gt 0 ] &&
+		COLOR_RED &&
+		echo "Error: ${#error_count[@]} PHP syntax error found" &&
+		echo "${error_count[@]}" | tr " " '\n' &&
+		COLOR_RESET &&
+		exit 255
+}
+
+function guess_new_tag()
+{
+	lastRCVersion=($(git branch -a |
+		grep -E "remotes/REL_[0-9.]+_RC" |
+		tail -1 |
+		grep -oE "[0-9]+"
+	))
+
+	lastTagVersion=($(git branch -a |
+		grep remotes/tags | grep '\.' |
+		grep -vE "_RC|Fusion" | # explicit filtering to support fusion
+		tail -1 |
+		grep -oE "[0-9]+"
+	))
+
+	[ ${lastRCVersion[0]} -gt ${lastTagVersion[0]} ] &&
+		majorVersion=${lastRCVersion[0]} ||
+		majorVersion=${lastTagVersion[0]}
+
+	[ ${lastRCVersion[1]} -gt ${lastTagVersion[1]} ] &&
+		minorVersion=${lastRCVersion[1]} ||
+		minorVersion=${lastTagVersion[1]}
+
+	[ ${lastRCVersion[1]} -gt ${lastTagVersion[1]} ] &&
+		miniVersion="" ||
+		miniVersion=$((${lastTagVersion[2]}+1))
+
+	[ ${lastRCVersion[0]} -gt ${lastTagVersion[0]} ] &&
+		minorVersion=${lastRCVersion[1]} &&
+		miniVersion=""
+
+	echo $majorVersion $minorVersion $miniVersion | tr " " "."
+}
+
 function create_tag()
 {
 	git config release.jira | xargs test -z && error "Error: release.jira config not set, please run:
 
 	git config release.jira <QAT-XXX>"
-	SUGGESTION=$(latest_rc_tags | grep tags | cut -d/ -f2)
+	SUGGESTION="REL_$(guess_new_tag)"
+
+	# Check file for PHP syntax errors
+	php_lint $(git diff --name-only trunk)
+
 	case $1 in
 		REL_*) TAG="$1";;
 		*) read -p "Please enter SVN tag name [$SUGGESTION]: " TAG;;
 	esac
 	TAG=${TAG:-$SUGGESTION}
-	command="git svn tag $TAG -m '$(git config release.jira): tags/$TAG'"
-	echo $command
+	command="
+	git svn tag $TAG -m \"$(git config release.jira): tags/$TAG\""
+	echo "$command"
 }
 
 function rebase_trunk()
