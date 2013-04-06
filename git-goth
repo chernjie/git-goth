@@ -423,6 +423,40 @@ function jira_release_tracking()
 	done
 }
 
+function scp_and_stage
+{
+	set_remote $1
+	shift
+
+	head=""
+	if [ $(echo $1 | grep -i -c '^head\(~[0-9]*\)*$') -eq 1 ]
+	then
+		head=$1
+		shift
+	fi
+
+	if [ $# -ge 1 ]
+	then
+		list=$(echo "$@" | tr ' ' "\\n")
+	elif [ -n "$head" ]
+	then
+		git diff --stat $head
+		list=$(git diff $head --name-only)
+	else
+		git diff
+		list=$(git diff --name-only)
+	fi
+
+	if [ -n "$list" ]
+	then
+		_TMP=${0///}
+		echo "$list" > $_TMP &&
+		rsync -rlDv --files-from=$_TMP ./ "$(git config remote.$remote.url)/" &&
+		git add $list &&
+		rm $_TMP
+	fi
+}
+
 function show_branch_status
 {
 	#####
@@ -455,6 +489,7 @@ function error()
 	echo "Usage: git mig33 edit|-e|eclipse                 # edit this script"
 #	echo "Usage: git mig33 clone|init [repo_name]          # clone git svn repo"
 	echo "Usage: git mig33 branch [info] <limit>           # list SVN branches sorted by last updated"
+	echo "Usage: git mig33 scp/stage <remote> [ref|file..] # scp and stage your files to specified remote"
 #	echo "Usage: git mig33 remote cleanup <remote>         # reverse prune, deletes remote non SVN branch"
 #	echo "Usage: git mig33 remote missing <remote>         # SVN branches missing from remote"
 	echo "Usage: git mig33 show [-dhj]                     # -d:unpushed -h:hash-only -j:jira-only"
@@ -494,7 +529,7 @@ case $1 in
 		esac;;
 	show)                 shift; show_log $@;;
 	log)                  shift; svn_branch_log $@;;
-	scp)				  shift; gitwebscp $@;;
+	scp)				  shift; scp_and_stage $@;;
 	rebase)				  shift; gitsvnrebase $@;;
 	trac)                 shift; generate_trac_link $@;;
 	qa)
