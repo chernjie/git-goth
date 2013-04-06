@@ -402,6 +402,14 @@ function show_branch_status
 	done | column -t
 }
 
+function generate_trac_link()
+{
+	for i
+	do
+		git svn find-rev $i | xargs printf "$(git config url.trac)/changeset/%s\n"
+	done
+}
+
 function error()
 {
 	if [ -n "$1" ]
@@ -452,6 +460,7 @@ case $1 in
 	log)                  shift; svn_branch_log $@;;
 	scp)				  shift; gitwebscp $@;;
 	rebase)				  shift; gitsvnrebase $@;;
+	trac)                 shift; generate_trac_link $@;;
 	qa)
 		shift; case $1 in
 			unmerged)
