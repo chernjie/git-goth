@@ -395,11 +395,12 @@ function show_branch_status
 	#####
 	# unpushed local branches
 	#
+	( echo branch ref upstream uncommitted
 	for i in $(git branch | tr -d "* ")
 	do
 		git rev-list --left-right --count $(get_git_svn_branch $i)...$i |
 			xargs echo $(git log -1 --pretty=format:"$i %h" $i)
-	done | column -t
+	done ) | column -t
 }
 
 function generate_trac_link()
