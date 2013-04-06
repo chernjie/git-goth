@@ -15,7 +15,7 @@ function latest_rc_tags()
 		[0-9]*) limit=-$1;;
 		*)      limit=-1;;
 	esac
-	for i in "^maintenance_2012.." "^REL_.*_RC\$"
+	for i in "^maintenance_201." "^REL_.*_RC\$"
 	do
 		git branch -r | tr -d \ | grep -E "$i" --color=never | tail $limit
 	done #List latest RC and tags
@@ -385,7 +385,7 @@ function create_tag()
 
 function rebase_trunk()
 {
-	[ $(git mig33 upstream HEAD) = "trunk" ] &&
+	[ $(get_git_svn_branch HEAD) = "trunk" ] &&
 		MERGE_FROM=$(latest_rc_tags | grep RC) ||
 		MERGE_FROM="--no-jira master"
 	
@@ -487,7 +487,7 @@ function jira_release_tracking()
 			for h in $(git rev-list --all --grep=$i)
 			do
 				git log -1 --format="%h %an $(
-					git mig33 upstream $h
+					get_git_svn_branch $h
 				)($(
 					git branch --contains $h | tr -d ' ' | xargs echo | tr ' ' '|'
 				)) $(
@@ -561,7 +561,7 @@ function show_branch_status
 	#####
 	# unpushed local branches
 	#
-	( echo branch ref upstream uncommitted
+	( echo Branch Ref Upstream Ahead
 	for i in $(git branch | tr -d "* ")
 	do
 		git rev-list --left-right --count $(get_git_svn_branch $i)...$i |
@@ -632,7 +632,7 @@ function error()
 }
 
 case $1 in
-	''|-h|help|?)         error;;
+	''|-h|?|help|--help)  error;;
 	edit|-e)              vim $0;;
 	eclipse)              open -a /Applications/eclipse_indigo/Eclipse.app/ $0;;
 	branch|br)
