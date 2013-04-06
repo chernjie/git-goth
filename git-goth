@@ -568,6 +568,55 @@ function scp_and_stage
 	COLOR_RESET
 }
 
+function gitsvnrebase()
+{
+	local _list=()
+	case "$1" in
+		''|?|-h|--help|help)
+			echo "Usage: ${0##/*/} --all"
+			echo "Usage: all refers to current branch and with a --fetch-all option"
+			echo "Example: ${0##/*/} l_trunk l_sprint"
+			git mig33 branch status
+			exit
+			;;
+		--all|all|--fetch-all) shift;
+			_list=($(git branch | tr -d '* '))
+			;;
+		*)
+			for i do
+				git show-ref --quiet --verify -- $i &&
+				_list[]=$i
+			done
+			;;
+	esac
+
+	local has_changes=`git stash save $0 | grep -c $0`
+
+	echo git svn fetch --all
+	git svn fetch --all
+
+	for i in ${_list[@]}
+	do
+		_u=$(git mig33 upstream $i)
+		_delta=($(
+			git rev-list --count --left-right $_u...$i
+		))
+		if [ ${_delta[1]} -gt 0 ]
+		then
+			[ ${_delta[0]} -gt 0 ] &&
+			echo -e "$i: \033[31m${_delta[1]} uncommitted change(s)... ${_delta[0]} upstream, rebase skipped\033[0m"
+		elif [ ${_delta[0]} -gt 0 ]
+		then
+			echo Fast-forwarded $i to branches/$_u
+			git branch -f $i $_u
+		fi
+	done
+
+	[ $has_changes -gt 0 ] && git stash pop # > /dev/null 2>&1
+
+	exit 0
+}
+
 function show_branch_status
 {
 	#####
