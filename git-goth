@@ -15,17 +15,20 @@ function latest_rc_tags()
 
 function get_svn_branch()
 {
-	# $1 git-ref
-	git log $1 --pretty=format:"%B" |
-		grep git-svn-id |
-		head -1 |
-		grep -oE '(branches/|tags/)?[^/]+@' --color=never |
-		tr -d "@"
+	# git-ref
+	for i in $@
+	do
+		git log $i --pretty=format:"%B" |
+			grep git-svn-id |
+			head -1 |
+			grep -oE '(branches/|tags/)?[^/]+@' --color=never |
+			tr -d "@"
+	done
 }
 
 function get_git_svn_branch()
 {
-	get_svn_branch $1 | grep -oE '(tags/)?[^/]+$' --color=never
+	get_svn_branch $@ | grep -oE '(tags/)?[^/]+$' --color=never
 }
 
 function active_branch_from_log()
@@ -290,39 +293,20 @@ function hash2jira()
 
 function blame_during_merge_conflicts()
 {
-	if [ -n "$1" ] && ! [ $1 -ge 0 2>/dev/null ] && [ $(git branch -a | grep -c $1) -gt 0 ]
-	then
-		LAST_MERGE=$1
-		shift
-	else
-		LAST_MERGE=$(git config mergeQA.$(git name-rev --name-only HEAD).last)
-	fi
-	
-	case $1 in
-		[0-9]*) limit=$1;;
-		*)      limit=1;;
-	esac
-	
 	for i in $(git diff --name-only | uniq)
 	do
-		 list_head=($(git log -$limit --pretty=format:"%h" HEAD        $i))
-		list_merge=($(git log -$limit --pretty=format:"%h" $LAST_MERGE $i))
-		
-		count=0
-		until [ $count -eq $limit ] || [ $count -eq ${#list_head[@]} ] || [ $count -eq ${#list_merge[@]} ]
+		hashes=$(git log --merge --format="%h" $i)
+		for b in $(get_git_svn_branch $hashes | uniq)
 		do
 			echo $i $(
-				git log -1 --pretty=format:"%an@HEAD:$(
-					git log -1 --pretty=format:"%B" ${list_head[$count]} |
-						_listjira | implode ","
-				) " ${list_head[$count]}
-			) $(
-				git log -1 --pretty=format:"%an@$LAST_MERGE:$(
-					git log -1 --pretty=format:"%B" ${list_merge[$count]} |
-						_listjira | implode ","
-				) " ${list_merge[$count]}
+				git log -1 $b --format="%an"
+			) $b:$(
+				for h in $hashes
+				do
+					[ $(git show --format="%B" --shortstat $h | grep -c "$b") -gt 0 ] &&
+					git svn find-rev $h | xargs printf "r%s\n"
+				done | implode ','
 			)
-			count=$(($count + 1))
 		done
 	done | column -t
 }
