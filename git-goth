@@ -49,16 +49,34 @@ function active_branch_from_log()
 		head -$count
 }
 
-function reflog()
+function svn_branch_log()
 {
+	COUNT=0
+	for i do
+		if [ $COUNT -eq 0 ] && [ "${i:0:1}" != "-" ]
+		then
+			COUNT=$(($COUNT + 1))
+			REF="$i"
+		elif [ $COUNT -gt 0 ] && [ "${i:0:1}" != "-" ]
+		then
+			error "Only one branch ref allowed!"
+		else
+			ARGS="$ARGS $i"
+		fi
+	done
+	set -- $ARGS
+
 	#####
 	# List total new commits in specified ref
 	#
-	git lg --first-parent $(
-		get_git_svn_branch $1 |
-			xargs git reflog |
-			cut -d" " -f1 | tail -1
-	)..$1
+	git log --first-parent --pretty=format:%B $REF |
+		grep git-svn-id |
+		grep -v $(get_git_svn_branch $REF) |
+		head -1 |
+		grep -oE "@[0-9]+" |
+		xargs git log --all --format=%h --grep |
+		xargs printf "%s..$REF " |
+		xargs git lg --first-parent $@
 }
 
 function non_release_jira()
@@ -371,7 +389,7 @@ function error()
 	echo "Usage: git qa push|dcommit <remote>              # Please do not use this!!! update local SVN to remote"
 	echo
 	echo "Deprecated commands:"
-	echo "Usage: git mig33 reflog [branch]                 # log of current SVN branch"
+	echo "Usage: git mig33 log [branch]                    # log of current SVN branch"
 	echo "Usage: git qa rc [new [QAT]]"                    # Create new SVN branch
 	exit
 }
@@ -395,7 +413,7 @@ case $1 in
 			missing)      shift; missing_remote_branches $@;;
 		esac;;
 	show)                 shift; show_log $@;;
-	reflog)               shift; reflog $@;;
+	log)                  shift; svn_branch_log $@;;
 	scp)				  shift; gitwebscp $@;;
 	rebase)				  shift; gitsvnrebase $@;;
 	qa)
