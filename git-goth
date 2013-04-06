@@ -281,13 +281,13 @@ function create_rc()
 	
 	if [ $(git branch | grep -c rel$RC_NUMBER) -lt 1 ]
 	then
-		git checkout $RC_BRANCH -b rel$RC_NUMBER
+		git checkout --track $RC_BRANCH -b rel$RC_NUMBER
 	else
 		git checkout rel$RC_NUMBER
 	fi
 	
 	git branch -D mqa$RC_NUMBER
-	git checkout $RC_BRANCH -b mqa$RC_NUMBER
+	git checkout --track $RC_BRANCH -b mqa$RC_NUMBER
 }
 
 function create_tag()
