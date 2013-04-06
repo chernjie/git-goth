@@ -2,9 +2,13 @@
 
 function latest_rc_tags()
 {
+	case $1 in
+		[0-9]*) limit=$1;;
+		*)      limit=1;;
+	esac
 	for i in "^maintenance_2012.." "^REL_.*_RC\$" "^tags/([0-9]|REL_).*\$"
 	do
-		git branch -r | tr -d \ | grep -E "$i" --color=never | tail -1
+		git branch -r | tr -d \ | grep -E "$i" --color=never | tail -$limit
 	done #List latest RC and tags
 }
 
@@ -182,9 +186,10 @@ function create_rc()
 		'') RC_BRANCH=$(latest_rc_tags | grep _RC --color=never);;
 		new)
 			shift;
-			[ $# -ge 2 ] || error "Missing argument RC_BRANCH and JIRA"
-			RC_BRANCH="$1";
-			JIRA="$2";
+			[ $# -ge 1 ] || error "Missing argument RC_BRANCH and JIRA"
+			i=$(latest_rc_tags | grep RC | grep -oE '\.[0-9]+' --color=never | tr -d \.)
+			RC_BRANCH=$(latest_rc_tags | grep RC | sed "s#$i#$((1+$i))#")
+			JIRA="$1";
 			echo "git checkout master"
 			echo "git reset --hard trunk"
 			echo "git svn branch $RC_BRANCH -m \"$JIRA: new RC branches/$RC_BRANCH\""
@@ -315,15 +320,15 @@ case $1 in
 	branch)
 		shift; case $1 in
 			info|last|latest|release|tags|rc|maintenance)
-			              latest_rc_tags;;
+			              shift; latest_rc_tags $@;;
 			*)            active_branch_from_log $@;;
 		esac;;
-	info|release)         latest_rc_tags;;
+	info|release)         shift; latest_rc_tags $@;;
 	tag|tags|rc)          error;; #reserved
 	clone|init)           init_git_svn_repo $@;;
 	remote)
 		shift; case $1 in
-			cleanup)      shift; delete_non_svn_branches_from_remote $@;;
+			cleanup)      shift; delete_non_svn_branches_from_remote $@;;# Destructive
 			missing)      shift; missing_remote_branches $@;;
 		esac;;
 	show)                 shift; show_non_dcommit_commits $@;;
@@ -336,7 +341,7 @@ case $1 in
 			merge)        shift; gitsvnmerge $@;;
 			blame)        shift; blame_during_merge_conflicts $@;;
 			push|dcommit) shift; push_remote $@;;
-			rc)           shift; create_rc $@;;
+			rc)           shift; create_rc $@;;# Destructive
 			*)            git mig33 $@;; #error;;
 		esac;;
 	*)                    git svn $@;; #error;;
