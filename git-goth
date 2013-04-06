@@ -587,7 +587,7 @@ function svn_cherry_pick()
 		
 		# use %B instead of %s%n%b
 		# requires git version gt 1.7
-		local message="r$(git svn find-rev $refhead) $(git log --pretty=format:%B -1 $refhead | grep -v git-svn-id)"
+		local message="r$(git svn find-rev $refhead) $(git log --pretty=format:"%an %B" -1 $refhead | grep -v git-svn-id)"
 		local is_merge_commit="" && [ $(git cat-file -p $refhead | grep -cE '^parent') -gt 1 ] && is_merge_commit="-m1"
 		
 		git cherry-pick $is_merge_commit $refhead &&
