@@ -55,7 +55,7 @@ function active_branch_from_log()
 		*) count=20;;
 	esac
 	
-	git log --all --format="%d" |
+	git log --all --pretty=format:"%d" |
 		tr "(,)" " " |
 		xargs printf "%s\n" |
 		grep -vE "^$(
@@ -91,7 +91,7 @@ function svn_branch_log()
 		grep -v $(get_git_svn_branch $REF) |
 		head -1 |
 		grep -oE "@[0-9]+" |
-		xargs git log --all --format=%h --grep |
+		xargs git log --all --pretty=format:%h --grep |
 		xargs printf "%s..$REF " |
 		xargs git lg --first-parent $@
 }
@@ -114,7 +114,7 @@ function non_release_jira()
 		) $(
 			jira-cli $(
 				echo $i | grep -oE "[A-Z]+\-[0-9]+" --color=never | grep -v QAT
-			) --format="[%status]" | tr " " _
+			) --pretty=format:"[%status]" | tr " " _
 		)%n" -1 $i
 	done | column -t | sort -rn | grep -v '\[Closed\]' | grep -v '\[Open\]'
 
@@ -318,10 +318,10 @@ function hash2jira()
 {
 	for i in $@
 	do
-		git show $i --relative="#" --format="%h $(
+		git show $i --relative="#" --pretty=format:"%h $(
 			git svn find-rev $i | sed -E 's#([0-9]+)#r\1#'
 		) $(
-			git show $i --format=%B --shortstat | _listjira | grep -v QAT | xargs echo
+			git show $i --pretty=format:%B --shortstat | _listjira | grep -v QAT | xargs echo
 		)" | grep -v ^$
 	done
 }
@@ -330,15 +330,15 @@ function blame_during_merge_conflicts()
 {
 	for i in $(git diff --name-only | uniq)
 	do
-		hashes=$(git log --merge --format="%h" $i)
+		hashes=$(git log --merge --pretty=format:"%h" $i)
 		for b in $(get_git_svn_branch $hashes | uniq)
 		do
 			echo $i $(
-				git log -1 $b --format="%an"
+				git log -1 $b --pretty=format:"%an"
 			) $b:$(
 				for h in $hashes
 				do
-					[ $(git show --format="%B" --shortstat $h | grep -c "$b") -gt 0 ] &&
+					[ $(git show --pretty=format:"%B" --shortstat $h | grep -c "$b") -gt 0 ] &&
 					git svn find-rev $h | xargs printf "r%s\n"
 				done | implode ','
 			)
