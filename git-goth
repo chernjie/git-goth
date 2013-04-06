@@ -15,7 +15,7 @@ function latest_rc_tags()
 		[0-9]*) limit=-$1;;
 		*)      limit=-1;;
 	esac
-	for i in "^maintenance_201." "^REL_.*_RC\$"
+	for i in "^maintenance_201.*" "^REL_.*_RC\$"
 	do
 		git branch -r | tr -d \ | grep -E "$i" --color=never | tail $limit
 	done #List latest RC and tags
@@ -30,6 +30,18 @@ function get_svn_branch()
 	# git-ref
 	[ $# -gt 0 ] || set -- HEAD
 	
+	# find tracking branch if exists
+	if [ -n "$(git config branch.$1.merge)" ]
+	then
+		if [ $(git config branch.$1.remote) = "." ]
+		then
+			git config branch.$1.merge
+		else
+			echo $(git config branch.$1.remote)/$(git config branch.$1.merge)
+		fi
+		return
+	fi
+
 	local svn_remote="$(git config --get-regexp svn-remote.*\.url | cut -d' ' -f1 | sed 's#\.url$##')"
 	if [ -z "$svn_remote" ]
 	then
@@ -49,22 +61,21 @@ function get_svn_branch()
 	done
 	svn_url_pattern="${svn_url_pattern#?}"
 	
-	for i in $@
-	do
-		git log -1 --pretty=format:"%s%n%b" --first-parent --grep=git-svn-id $i |
-			grep git-svn-id |
-			cut -d' ' -f2 |
-			sed $sedRegExp "{
-				s#$svn_url_pattern##
-				s#@.*##
-				s/^$/${GIT_SVN_ID:-git-svn}/
-			}"
-	done
+	git log -1 --pretty=format:"%s%n%b" --first-parent --grep=git-svn-id $1 |
+		grep git-svn-id |
+		cut -d' ' -f2 |
+		sed $sedRegExp "{
+			s#$svn_url_pattern##
+			s#@.*##
+			s/^$/${GIT_SVN_ID:-git-svn}/
+		}"
 }
 
 function get_git_svn_branch()
 {
-	get_svn_branch $@ | sed 's#^branches/##'
+	for i do
+		get_svn_branch $i | sed 's#^branches/##'
+	done
 }
 
 function active_branch_from_log()
@@ -324,7 +335,7 @@ function php_lint()
 		echo "${error_count[@]}" | tr " " '\n' &&
 		COLOR_RESET &&
 		exit 255
-	
+
 	echo -n
 }
 
