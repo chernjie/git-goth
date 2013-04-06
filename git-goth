@@ -258,7 +258,8 @@ function create_rc()
 			echo "git checkout master"
 			echo "git reset --hard trunk"
 			echo "git svn branch $RC_BRANCH -m \"$JIRA: new RC branches/$RC_BRANCH\""
-			error "Command not completed yet";;
+			echo "Warning: Command not completed yet"
+			exit;;
 		REL_[0-9.]*_RC) RC_BRANCH="$1"; shift;;
 		*) error "the given/current RC branch does not follow RC convention (e.g. REL_*_RC): $RC_BRANCH";;
 	esac
