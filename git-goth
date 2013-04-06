@@ -187,10 +187,13 @@ function create_rc()
 		'') RC_BRANCH=$(latest_rc_tags | grep _RC --color=never);;
 		new)
 			shift;
-			[ $# -ge 1 ] || error "Missing argument RC_BRANCH and JIRA"
+			#[ $# -ge 1 ] || error "Missing argument QAT JIRA"
 			i=$(latest_rc_tags | grep RC | grep -oE '\.[0-9]+' --color=never | tr -d \.)
 			RC_BRANCH=$(latest_rc_tags | grep RC | sed "s#$i#$((1+$i))#")
-			JIRA="$1";
+			[ $(echo $1 | grep -cE '[A-Z]+\-[0-9]+') -eq 1 ] || error "Invalid QAT number"
+			git config --unset release.jira
+			git config --add release.jira $1
+			JIRA="$(git config release.jira)";
 			echo "git checkout master"
 			echo "git reset --hard trunk"
 			echo "git svn branch $RC_BRANCH -m \"$JIRA: new RC branches/$RC_BRANCH\""
