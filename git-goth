@@ -223,7 +223,7 @@ function delete_non_svn_branches_from_remote()
 	#
 	git branch -r | tr -d \ |
 		grep -E "^$remote/" --color=never |
-		sed -E "s#^$remote/##" |
+		sed "s#^$remote/##" |
 		grep -vE "^$(
 			git branch -r | tr -d \ |
 				grep -vE "^$(
@@ -319,7 +319,7 @@ function hash2jira()
 	for i in $@
 	do
 		git show $i --relative="#" --pretty=format:"%h $(
-			git svn find-rev $i | sed -E 's#([0-9]+)#r\1#'
+			git svn find-rev $i | sed 's#\([0-9][0-9]*\)#r\1#'
 		) $(
 			git show $i --pretty=format:%B --shortstat | _listjira | grep -v QAT | xargs echo
 		)" | grep -v ^$
