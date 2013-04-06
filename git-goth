@@ -282,7 +282,6 @@ function create_rc()
 function show_non_dcommit_hashes()
 {
 	git rev-list --reverse --first-parent $(get_git_svn_branch $1)..$1
-	#git svn dcommit --dry-run | grep diff | tr " " "\n" | grep -v diff | grep -v "~"
 }
 
 function show_log()
