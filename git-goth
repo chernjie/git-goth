@@ -19,7 +19,7 @@ function get_svn_branch()
 	[ $# -gt 0 ] || set -- HEAD
 	for i in $@
 	do
-		git log -1 --pretty=format:"%B" --first-parent --grep git-svn-id $i |
+		git log -1 --pretty=format:"%s%n%b" --first-parent --grep=git-svn-id $i |
 			grep -oE '(branches/|tags/)?[^/]+@' --color=never |
 			tr -d "@"
 	done
@@ -86,7 +86,7 @@ function svn_branch_log()
 	#####
 	# List total new commits in specified ref
 	#
-	git log --first-parent --pretty=format:%B $REF |
+	git log --first-parent --pretty=format:"%s%n%b" $REF |
 		grep git-svn-id |
 		grep -v $(get_git_svn_branch $REF) |
 		head -1 |
@@ -293,7 +293,7 @@ function show_log()
 		case "$1" in
 			-d) shift; unpushed=$(show_non_dcommit_hashes $1); shift;;
 			-h) hashonly="--pretty=format:%h"; shift;;
-			-j) jiraonly="--pretty=format:%B"; shift;;
+			-j) jiraonly="--pretty=format:%s%n%b"; shift;;
 			--) shift; break;;
 		esac
 	done
@@ -321,7 +321,7 @@ function hash2jira()
 		git show $i --relative="#" --pretty=format:"%h $(
 			git svn find-rev $i | sed 's#\([0-9][0-9]*\)#r\1#'
 		) $(
-			git show $i --pretty=format:%B --shortstat | _listjira | grep -v QAT | xargs echo
+			git show $i --pretty=format:"%s%n%b" --shortstat | _listjira | grep -v QAT | xargs echo
 		)" | grep -v ^$
 	done
 }
@@ -338,7 +338,7 @@ function blame_during_merge_conflicts()
 			) $b:$(
 				for h in $hashes
 				do
-					[ $(git show --pretty=format:"%B" --shortstat $h | grep -c "$b") -gt 0 ] &&
+					[ $(git show --pretty=format:"%s%n%b" --shortstat $h | grep -c "$b") -gt 0 ] &&
 					git svn find-rev $h | xargs printf "r%s\n"
 				done | implode ','
 			)
@@ -360,18 +360,18 @@ function jira_release_tracking()
 {
 	for i in $@
 	do
-		if [ -n "$(git lg --grep $i)" ]
+		if [ -n "$(git lg --grep=$i)" ]
 		then
 			echo $i merged or exist in this tree
 		elif [ $(git branch -r | grep -c $i) -eq 0 ] ||
 			[ -n "$(
 				git branch | grep mergeQA --color=never |
 					tr -d " *" | xargs printf "^%s\n" |
-					git lg --stdin --all --grep $i ^$i HEAD
+					git lg --stdin --all --grep=$i ^$i HEAD
 			)" ]
 		then
 			jira-cli --oneline $i
-			git lg --all --grep $i
+			git lg --all --grep=$i
 		else
 			if [ -z "$(git config release.jira)" ]
 			then
