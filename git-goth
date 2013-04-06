@@ -86,8 +86,7 @@ function svn_branch_log()
 	#####
 	# List total new commits in specified ref
 	#
-	git log --first-parent --pretty=format:%B $REF |
-		grep git-svn-id |
+	git log --first-parent --pretty=format:%B --grep git-svn-id $REF |
 		grep -v $(get_git_svn_branch $REF) |
 		head -1 |
 		grep -oE "@[0-9]+" |
