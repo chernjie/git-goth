@@ -283,8 +283,8 @@ function create_rc()
 		git checkout rel$RC_NUMBER
 	fi
 	
-	git branch -D mergeQA_$RC_NUMBER
-	git checkout $RC_BRANCH -b mergeQA_$RC_NUMBER
+	git branch -D mqa$RC_NUMBER
+	git checkout $RC_BRANCH -b mqa$RC_NUMBER
 }
 
 function show_non_dcommit_hashes()
@@ -372,7 +372,7 @@ function jira_release_tracking()
 			echo $i merged or exist in this tree
 		elif [ $(git branch -r | grep -c $i) -eq 0 ] ||
 			[ -n "$(
-				git branch | grep mergeQA --color=never |
+				git branch | grep mqa --color=never |
 					tr -d " *" | xargs printf "^%s\n" |
 					git lg --stdin --all --grep=$i ^$i HEAD
 			)" ]
@@ -397,7 +397,7 @@ function show_branch_status
 	#
 	for i in $(git branch | tr -d "* ")
 	do
-		git rev-list --left-right --count $(get_git_svn_branch $i)..$i |
+		git rev-list --left-right --count $(get_git_svn_branch $i)...$i |
 			xargs echo $i
 	done | column -t
 }
