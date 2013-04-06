@@ -521,7 +521,8 @@ function scp_and_stage
 
 	if [ $# -ge 1 ]
 	then
-		list=$(echo "$@" | tr ' ' "\\n")
+		list=$(git ls-files "$@")" "$(git ls-files -o "$@")
+		# list=$(echo "$@" | tr ' ' "\\n")
 	elif [ -n "$refhead" ]
 	then
 		git diff --stat $refhead
