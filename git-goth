@@ -3,12 +3,13 @@
 function latest_rc_tags()
 {
 	case $1 in
-		[0-9]*) limit=$1;;
-		*)      limit=1;;
+		-[0-9]*) limit=$1;;
+		[0-9]*) limit=-$1;;
+		*)      limit=-1;;
 	esac
 	for i in "^maintenance_2012.." "^REL_.*_RC\$" "^tags/([0-9]|REL_).*\$"
 	do
-		git branch -r | tr -d \ | grep -E "$i" --color=never | tail -$limit
+		git branch -r | tr -d \ | grep -E "$i" --color=never | tail $limit
 	done #List latest RC and tags
 }
 
@@ -229,29 +230,27 @@ function show_non_dcommit_hashes()
 	git svn dcommit --dry-run | grep diff | tr " " "\n" | grep -v diff | grep -v "~"
 }
 
-function show_commit_messages()
+function show_log()
 {
-	_TEMP=tempfile.tmp
-
-	case $1 in
-		jira|--jira) shift; jira=1;;
-		*)    ;;
-	esac
-
-	git show --pretty=format:'==== %h%n%B' --shortstat $@ >> $_TEMP
+	args=$(getopt :dhj $*)
+	set -- $args
+	for i do
+		case "$1" in
+			-d) unpushed=$(show_non_dcommit_hashes); shift;;
+			-h) hashonly="--pretty=format:%h"; shift;;
+			-j) jiraonly="--pretty=format:%B"; shift;;
+			--) shift; break;;
+		esac
+	done
 	
-	if [ -f "$_TEMP" ]
+	if [ -n "$jiraonly" ] && [ -n "$hashonly" ]
 	then
-		if [ $jira -eq 1 ]
-		then
-			cat $_TEMP | _listjira | xargs echo
-		else
-			cat $_TEMP
-		fi
-		
-		rm $_TEMP
+		hash2jira $@ $unpushed
+	elif [ -n "$jiraonly" ]
+	then
+		git show --relative="#" $@ $hashonly $jiraonly $unpushed | _listjira | xargs echo
 	else
-		error "No mergeQA commits."
+		git show --relative="#" $@ $hashonly $jiraonly $unpushed
 	fi
 }
 
@@ -262,11 +261,19 @@ function _listjira()
 		sort -u
 }
 
+function _listjiraQAT()
+{
+	grep -oE "[A-Z]+\-[0-9]+" --color=never |
+		sort -u
+}
+
 function hash2jira()
 {
 	for i in $@
 	do
 		git show $i --relative="#" --format="%h $(
+			git svn find-rev $i
+		) $(
 			git show $i --format=%B --shortstat | _listjira | xargs echo
 		)" | grep -v ^$
 	done
@@ -278,32 +285,38 @@ function blame_during_merge_conflicts()
 	then
 		LAST_MERGE=$1
 		shift
-	elif [ -f $LAST_MERGE_FILE ]
-	then
-		LAST_MERGE=$(git config mergeQA.$(git name-rev --name-only HEAD).last)
 	else
-		error "Source Branchname required"
+		LAST_MERGE=$(git config mergeQA.$(git name-rev --name-only HEAD).last)
 	fi
 	
-	limit=1
-	if [ $1 -ge 0 2>/dev/null ]
-	then
-		limit=$1
-		shift
-	fi
+	case $1 in
+		[0-9]*) limit=$1;;
+		*)      limit=1;;
+	esac
 	
-	# error "LAST_MERGE $LAST_MERGE limit $limit"
-	
-	_TEMP=tempfile.tmp
 	for i in $(git diff --name-only | uniq)
 	do
-		for j in $(git name-rev --name-only HEAD) $LAST_MERGE
+		 list_head=($(git log -$limit --pretty=format:"%h" HEAD        $i))
+		list_merge=($(git log -$limit --pretty=format:"%h" $LAST_MERGE $i))
+		
+		count=0
+		until [ $count -eq $limit ] || [ $count -eq ${#list_head[@]} ] || [ $count -eq ${#list_merge[@]} ]
 		do
-			_jira_list="$(git log -1 --pretty=format:"%s" $j $i | grep -oE "[A-Z]+-[0-9]+" --color=never | sort -u | implode ",")"
-			git log -1 --pretty=format:"%an@$j($_jira_list) " $j $i
-		done > $_TEMP
-		echo $i $(cat $_TEMP)
-		rm $_TEMP
+			echo $i $(
+				git log -1 --pretty=format:"%an@HEAD:$(
+					git log -1 --pretty=format:"%B" ${list_head[$count]} |
+						_listjiraQAT |
+						implode ","
+				) " ${list_head[$count]}
+			) $(
+				git log -1 --pretty=format:"%an@$LAST_MERGE:$(
+					git log -1 --pretty=format:"%B" ${list_merge[$count]} |
+						_listjiraQAT |
+						implode ","
+				) " ${list_merge[$count]}
+			)
+			count=$(($count + 1))
+		done
 	done | column -t
 }
 
@@ -323,13 +336,21 @@ function jira_release_tracking()
 	do
 		if [ -n "$(git lg --grep $i)" ]
 		then
-			echo $i merged
-		elif [ $(git branch -r | grep -c $i) -eq 0 ] || [ -n "$(git lg --all ^$i --grep $i)" ]
+			echo $i merged or exist in this tree
+		elif [ $(git branch -r | grep -c $i) -eq 0 ] ||
+			[ -n "$(git lg --all ^$i HEAD $(
+				git branch | grep mergeQA --color=never | tr -d " *" | xargs printf "^%s\n"
+			) --grep $i)" ]
 		then
 			jira-cli --oneline $i
 			git lg --all --grep $i
 		else
-			echo git qa merge $i QAT-519 mergeQA
+			if [ -z "$(git config release.jira)" ]
+			then
+				error "release.jira doesn't exist, try:
+				git config --add release.jira QAT-XXX"
+			fi
+			echo git qa merge $i $(git config release.jira) mergeQA
 		fi
 	done
 }
@@ -343,17 +364,15 @@ function error()
 	fi
 	echo "Usage: git mig33 -h|help|?"
 	echo "Usage: git mig33 edit|-e|eclipse                 # edit this script"
-	echo "Usage: git mig33 clone|init [repo_name]          # clone git svn repo"
+#	echo "Usage: git mig33 clone|init [repo_name]          # clone git svn repo"
 	echo "Usage: git mig33 branch [info] <limit>           # list SVN branches sorted by last updated"
-	echo "Usage: git mig33 fetch|pull|rebase <remote>      # update local SVN to remote"
 	echo "Usage: git mig33 remote cleanup <remote>         # reverse prune, deletes remote non SVN branch"
 	echo "Usage: git mig33 remote missing <remote>         # SVN branches missing from remote"
-	echo "Usage: git mig33 show [jira|hash]                # show_non_dcommit_commits"
+	echo "Usage: git mig33 show [-dhj]                     # -d:unpushed -h:hash-only -j:jira-only"
 	echo
 	echo "Usage: git qa info                               # list last RC tags or maintenance branch"
 	echo "Usage: git qa graph [-limit]                     # show QA graph"
-	echo "Usage: git qa release [jira..]                   # jira release tracking, whether a jira has been merged"
-	echo "Usage: git qa unmerged                           # Resolved JIRA that are not released yet"
+	echo "Usage: git qa unmerged [JIRA#..]                 # release jira tracking, whether a jira has been merged or release"
 	echo "Usage: git qa merge <branchname> <JIRA#> [message]"
 	echo "Usage: git qa blame [branch] [limit=1]"
 	echo "Usage: git qa push|dcommit <remote>              # Please do not use this!!! update local SVN to remote"
@@ -382,22 +401,18 @@ case $1 in
 			cleanup)      shift; delete_non_svn_branches_from_remote $@;;# Destructive
 			missing)      shift; missing_remote_branches $@;;
 		esac;;
-	show)
-		shift; case $1 in
-			hash)         shift; show_non_dcommit_hashes;;
-			jira)         show_commit_messages --jira $(show_non_dcommit_hashes);;
-			both)         hash2jira $(show_non_dcommit_hashes);;
-			*)            show_commit_messages $(show_non_dcommit_hashes);;
-		esac;;
-	hash2jira)            shift; hash2jira $@;;
+	show)                 shift; show_log $@;;
 	reflog)               shift; reflog $@;;
 	scp)				  shift; gitwebscp $@;;
 	rebase)				  shift; gitsvnrebase $@;;
 	qa)
 		shift; case $1 in
-			unmerged)     non_release_jira;;
+			unmerged)
+				shift; case $1 in
+					'') non_release_jira;;
+					*)  jira_release_tracking $@;;
+				esac;;
 			graph)        shift; show_graph $@;;
-			release)      shift; jira_release_tracking $@;;
 			merge)        shift; gitsvnmerge $@;;
 			blame)        shift; blame_during_merge_conflicts $@;;
 			push|dcommit) shift; push_remote $@;;
