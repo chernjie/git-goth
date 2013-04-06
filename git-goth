@@ -90,7 +90,7 @@ function push_remote()
 	[ -d ~/mig33/Scripts ] || error "Missing resource ~/mig33/Scripts"
 	
 	echo
-	echo "Pushing fresh repo to gitorious..."
+	echo "Pushing new SVN branches to remote..."
 	echo
 	branches_to_push=$(missing_remote_branches $remote)
 	# all_branches=$(git branch -r | tr -d \ | grep -v ^$(git remote | implode "|"))
@@ -104,7 +104,7 @@ function push_remote()
 	done | xargs git push $remote -f trunk:master
 	
 	echo
-	echo "Updating gitorious from SVN..."
+	echo "Updating remote..."
 	echo
 	for i in $(active_branch_from_log)
 	do
