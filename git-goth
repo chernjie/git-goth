@@ -287,6 +287,25 @@ function create_rc()
 	git checkout $RC_BRANCH -b mqa$RC_NUMBER
 }
 
+function create_tag()
+{
+	case $1 in
+		REL_*) TAG="$1";;
+		*) read -p "Please enter SVN tag name [$(latest_rc_tags | grep tags | cut -d/ -f2)]: " TAG;;
+	esac
+	command="git svn tag $TAG -m '$(git config release.jira): tags/$TAG'"
+	echo $command
+}
+
+function rebase_trunk()
+{
+	[ $(git mig33 upstream HEAD) = "trunk" ] &&
+		MERGE_FROM=$(latest_rc_tags | grep RC) ||
+		MERGE_FROM="--no-jira master"
+	
+	git qa merge $MERGE_FROM $(git config release.jira) post release $(latest_rc_tags | grep tags)
+}
+
 function show_non_dcommit_hashes()
 {
 	git rev-list --reverse --first-parent $(get_git_svn_branch $1)..$1
@@ -447,6 +466,8 @@ function error()
 	echo "Deprecated commands:"
 	echo "Usage: git mig33 log [branch]                    # log of current SVN branch"
 	echo "Usage: git qa rc [new [QAT]]"                    # Create new SVN branch
+	echo "Usage: git qa tag [REL_8.XX]"                    # Generate create new SVN tag command
+	echo "Usage: git qa rebase"                            # Run git qa merge to rebase from RC
 	exit
 }
 
@@ -485,6 +506,8 @@ case $1 in
 			blame)        shift; blame_during_merge_conflicts $@;;
 			push|dcommit) shift; push_remote $@;;
 			rc)           shift; create_rc $@;;# Destructive
+			tag)          shift; create_tag $@;;# Destructive
+			rebase)       shift; rebase_trunk $@;;# Destructive
 			*)            git mig33 $@;; #error;;
 		esac;;
 	*)                    git svn $@;; #error;;
