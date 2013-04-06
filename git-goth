@@ -677,6 +677,24 @@ function show_remote_status()
 	done ) | column -t
 }
 
+function generate_github_link()
+{
+	local _package
+	for i
+	do
+		git config remote.$i.url > /dev/null
+		[ $? -eq 0 ] &&
+			_package=$(git config remote.$i.url | cut -d: -f2 | sed s:.git::) &&
+			continue
+	done
+	_package=${_package:-upstream}
+	for i
+	do
+		[ "$_package" = "$(git config remote.$i.url | cut -d: -f2 | sed s:.git::)" ] && continue
+		echo https://github.com/$_package/commit/$i
+	done
+}
+
 function generate_trac_link()
 {
 	for i
@@ -789,6 +807,7 @@ case $1 in
 	lg)                   shift; git_log_with_svn_branch $@;;
 	scp|stage)            shift; scp_and_stage $@;;
 	rebase)               shift; gitsvnrebase $@;;
+	github)               shift; generate_github_link $@;;
 	trac)                 shift; generate_trac_link $@;;
 	tracf)                shift; generate_trac_link_with_file $@;;
 	cherry-pick|cp)       shift; svn_cherry_pick $@;;
