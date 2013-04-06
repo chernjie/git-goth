@@ -405,7 +405,7 @@ function jira_release_tracking()
 				git log -1 --format="%h %an $(
 					git mig33 upstream $h
 				)($(
-					git branch --contains $h | tr -d ' '
+					git branch --contains $h | tr -d ' ' | implode '|'
 				)) $(
 					git svn find-rev $h | xargs printf 'r%s'
 				)" $h
