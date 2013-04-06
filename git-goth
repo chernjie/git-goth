@@ -539,7 +539,8 @@ function scp_and_stage
 	then
 		_TMP=${0///}
 		echo "$list" > $_TMP &&
-		php_lint $list && 
+		php_lint $list &&
+		echo Pushing to $remote \($(git config remote.$remote.url)\) &&
 		(which dos2unix && dos2unix $list || echo > /dev/null) &&
 		rsync -rlDv --files-from=$_TMP ./ "$(git config remote.$remote.url)/" &&
 		git add $list &&
@@ -565,7 +566,7 @@ function show_branch_status
 	for i in $(git branch | tr -d "* ")
 	do
 		git rev-list --left-right --count $(get_git_svn_branch $i)...$i |
-			xargs echo $(git log -1 --pretty=format:"$i %h" $i)
+			xargs echo $i $(git rev-parse --short $i)
 	done ) | column -t
 }
 
