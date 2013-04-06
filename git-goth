@@ -541,7 +541,7 @@ function scp_and_stage
 		echo "$list" > $_TMP &&
 		php_lint $list &&
 		echo Pushing to $remote \($(git config remote.$remote.url)\) &&
-		(which dos2unix && dos2unix $list || echo > /dev/null) &&
+		(which dos2unix > /dev/null && dos2unix $list || echo > /dev/null) &&
 		rsync -rlDv --files-from=$_TMP ./ "$(git config remote.$remote.url)/" &&
 		git add $list &&
 		rm $_TMP
