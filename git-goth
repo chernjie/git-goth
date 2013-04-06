@@ -307,6 +307,16 @@ function blame_during_merge_conflicts()
 	done | column -t
 }
 
+function show_graph()
+{
+	git log --graph --decorate --format=%d $@ $(
+		git log --all --format="%d" |
+			sed -E "s#\(|,|\)##g" |
+			xargs printf "%s\n" |
+			grep -E "^(tags/)?([0-9]|REL_)" --color=never
+	) trunk
+}
+
 function error()
 {
 	if [ -n "$1" ]
@@ -324,6 +334,7 @@ function error()
 	echo "Usage: git mig33 show [jira|hash]                # show_non_dcommit_commits"
 	echo
 	echo "Usage: git qa info|release                       # list last RC tags or maintenance branch"
+	echo "Usage: git qa graph [-limit]                     # show QA graph"
 	echo "Usage: git qa unmerged                           # Resolved JIRA that are not released yet"
 	echo "Usage: git qa merge <branchname> <JIRA#> [message]"
 	echo "Usage: git qa blame [branch] [limit=1]"
@@ -367,6 +378,7 @@ case $1 in
 	qa)
 		shift; case $1 in
 			unmerged)     non_release_jira;;
+			graph)        shift; show_graph $@;;
 			merge)        shift; gitsvnmerge $@;;
 			blame)        shift; blame_during_merge_conflicts $@;;
 			push|dcommit) shift; push_remote $@;;
