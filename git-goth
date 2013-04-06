@@ -398,7 +398,7 @@ function show_branch_status
 	for i in $(git branch | tr -d "* ")
 	do
 		git rev-list --left-right --count $(get_git_svn_branch $i)...$i |
-			xargs echo $i
+			xargs echo $(git log -1 --pretty=format:"$i %h" $i)
 	done | column -t
 }
 
