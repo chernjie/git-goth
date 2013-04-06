@@ -574,7 +574,7 @@ function svn_cherry_pick()
 		
 		git cherry-pick $is_merge_commit $refhead &&
 			git commit --amend -m "$message"
-	done
+	done && git rebase -i HEAD~$#
 
 }
 
