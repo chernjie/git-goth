@@ -18,7 +18,7 @@ function get_svn_branch()
 	# git-ref
 	for i in $@
 	do
-		git log $i --pretty=format:"%B" |
+		git log $i --pretty=format:"%B" --first-parent |
 			grep git-svn-id |
 			head -1 |
 			grep -oE '(branches/|tags/)?[^/]+@' --color=never |
