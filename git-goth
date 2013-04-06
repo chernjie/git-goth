@@ -110,37 +110,9 @@ function push_remote()
 	do
 		echo "refs/remotes/$i:$i"
 	done | xargs git push $remote
-	
-	echo
-	echo "Backing up .git/svn to Scripts folder..."
-	echo
-	repo_name=$(git config svn-remote.svn.fetch | cut -d/ -f1)
-	rsync -rt .git/svn ~/mig33/Scripts/git-tools/.rev_map/$repo_name
-	cd ~/mig33/Scripts
-	git add -f git-tools/.rev_map/$repo_name
-	git commit -m "WTF-13: backup .git/svn for $repo_name"
-	#git svn dcommit
-}
-
-function pull_remote()
-{
-	set_remote $1
-	
-	echo
-	echo "Pulling repo from gitorious..."
-	echo
-	git fetch $remote
-	
-	echo
-	echo "Pulling SVN rev_map from SVN..."
-	echo
-	cd .git/svn
-	git svn rebase --all
 }
 
 SVN_URL="$(git config url.svn)/%s"
-SVN_REV_MAP_URL="$(printf $SVN_URL "Scripts/git-tools/.rev_map/%s/svn")"
-SVN_REV_MAP_REV=37800
 GIT_URL="$(git config url.git-svn)/%s.git"
 REMOTE_ORIGIN=mig33
 function init_git_svn_repo()
@@ -165,10 +137,6 @@ function init_git_svn_repo()
 	git remote add $REMOTE_ORIGIN "$(printf $GIT_URL $git_repo_name)"
 	git fetch $REMOTE_ORIGIN
 	git reset --hard $REMOTE_ORIGIN/trunk
-	cd .git/svn
-	git svn init "$(printf $SVN_REV_MAP_URL $repo_name)"
-	git svn fetch --all -r $SVN_REV_MAP_REV:HEAD
-	cd ../../
 	git svn info
 }
 
@@ -353,7 +321,6 @@ case $1 in
 	info|release)         latest_rc_tags;;
 	tag|tags|rc)          error;; #reserved
 	clone|init)           init_git_svn_repo $@;;
-	fetch|pull|rebase)    shift; pull_remote $@;;
 	remote)
 		shift; case $1 in
 			cleanup)      shift; delete_non_svn_branches_from_remote $@;;
