@@ -292,10 +292,15 @@ function create_rc()
 
 function create_tag()
 {
+	git config release.jira | xargs test -z && error "Error: release.jira config not set, please run:
+
+	git config release.jira <QAT-XXX>"
+	SUGGESTION=$(latest_rc_tags | grep tags | cut -d/ -f2)
 	case $1 in
 		REL_*) TAG="$1";;
-		*) read -p "Please enter SVN tag name [$(latest_rc_tags | grep tags | cut -d/ -f2)]: " TAG;;
+		*) read -p "Please enter SVN tag name [$SUGGESTION]: " TAG;;
 	esac
+	TAG=${TAG:-$SUGGESTION}
 	command="git svn tag $TAG -m '$(git config release.jira): tags/$TAG'"
 	echo $command
 }
