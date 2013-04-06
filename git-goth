@@ -479,6 +479,26 @@ function generate_trac_link()
 	done
 }
 
+function svn_cherry_pick()
+{
+	for ref
+	do
+		# check if ref is valid
+		local refhead="$(git rev-parse --quiet --verify $ref)"
+		[ -z "$refhead" ] && error "Invalid reference given, ref can be either a branch name, tag, git hash or HEAD"
+		[ -z "$(git svn find-rev $refhead)" ] && error "$ref is not a SVN commit, please use \"git cherry-pick $ref\" instead"
+		
+		# use %B instead of %s%n%b
+		# requires git version gt 1.7
+		local message="r$(git svn find-rev $refhead) $(git log --pretty=format:%B -1 $refhead | grep -v git-svn-id)"
+		local is_merge_commit="" && [ $(git cat-file -p $refhead | grep -cE '^parent') -gt 1 ] && is_merge_commit="-m1"
+		
+		git cherry-pick $is_merge_commit $refhead &&
+			git commit --amend -m "$message"
+	done
+
+}
+
 function error()
 {
 	if [ -n "$1" ]
@@ -534,6 +554,7 @@ case $1 in
 	scp|stage)            shift; scp_and_stage $@;;
 	rebase)				  shift; gitsvnrebase $@;;
 	trac)                 shift; generate_trac_link $@;;
+	cherry-pick|cp)       shift; svn_cherry_pick $@;;
 	qa)
 		shift; case $1 in
 			unmerged)
