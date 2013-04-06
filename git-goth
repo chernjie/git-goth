@@ -16,7 +16,7 @@ function latest_rc_tags()
 function get_svn_branch()
 {
 	# git-ref
-	[ $# -gt 1 ] || set -- HEAD
+	[ $# -gt 0 ] || set -- HEAD
 	for i in $@
 	do
 		git log -1 --pretty=format:"%B" --first-parent --grep git-svn-id $i |
@@ -86,7 +86,8 @@ function svn_branch_log()
 	#####
 	# List total new commits in specified ref
 	#
-	git log --first-parent --pretty=format:%B --grep git-svn-id $REF |
+	git log --first-parent --pretty=format:%B $REF |
+		grep git-svn-id |
 		grep -v $(get_git_svn_branch $REF) |
 		head -1 |
 		grep -oE "@[0-9]+" |
@@ -393,16 +394,16 @@ function error()
 	echo "Usage: git mig33 edit|-e|eclipse                 # edit this script"
 #	echo "Usage: git mig33 clone|init [repo_name]          # clone git svn repo"
 	echo "Usage: git mig33 branch [info] <limit>           # list SVN branches sorted by last updated"
-	echo "Usage: git mig33 remote cleanup <remote>         # reverse prune, deletes remote non SVN branch"
-	echo "Usage: git mig33 remote missing <remote>         # SVN branches missing from remote"
+#	echo "Usage: git mig33 remote cleanup <remote>         # reverse prune, deletes remote non SVN branch"
+#	echo "Usage: git mig33 remote missing <remote>         # SVN branches missing from remote"
 	echo "Usage: git mig33 show [-dhj]                     # -d:unpushed -h:hash-only -j:jira-only"
 	echo
-	echo "Usage: git qa info                               # list last RC tags or maintenance branch"
+	echo "Usage: git qa info [-limit]                      # list last RC tags or maintenance branch"
 	echo "Usage: git qa graph [-limit]                     # show QA graph"
 	echo "Usage: git qa unmerged [JIRA#..]                 # release jira tracking, whether a jira has been merged or release"
 	echo "Usage: git qa merge <branchname> <JIRA#> [message]"
-	echo "Usage: git qa blame [branch] [limit=1]"
-	echo "Usage: git qa push|dcommit <remote>              # Please do not use this!!! update local SVN to remote"
+	echo "Usage: git qa blame                              # run a different variation of git log --merge"
+#	echo "Usage: git qa push|dcommit <remote>              # Please do not use this!!! update local SVN to remote"
 	echo
 	echo "Deprecated commands:"
 	echo "Usage: git mig33 log [branch]                    # log of current SVN branch"
