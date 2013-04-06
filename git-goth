@@ -126,6 +126,19 @@ function svn_branch_log()
 		xargs git lg --first-parent $@
 }
 
+function git_log_with_svn_branch()
+{
+	for i in $(
+		git rev-list $@
+	)
+	do
+		# _up=$(get_git_svn_branch $i)
+		# git log --graph --decorate --format='%C(yellow)%h '$(git svn find-rev $i $_up | xargs printf r%s)' %Cred'$_up' %Cred%d %Cgreen%an %Creset%s %C(cyan)%ar%Creset' $i -1
+		_svn=$(git rev-list $i --max-count 1 --format=%B | grep git-svn-id | sed -E -e "s#.*/([^/]+)@([0-9]+).*#\1:r\2#")
+		git log --graph --decorate --format='%C(yellow)%h %C(cyan)'$_svn'%Cred%d %Cgreen%an %Creset%s %C(cyan)%ar%Creset' $i -1		
+	done
+}
+
 function non_release_jira()
 {
 	jira-cli --oneline WTF-1 #> /dev/null 2>&1
@@ -773,6 +786,7 @@ case $1 in
 		                  esac;;
 	show)                 shift; show_log $@;;
 	log)                  shift; svn_branch_log $@;;
+	lg)                   shift; git_log_with_svn_branch $@;;
 	scp|stage)            shift; scp_and_stage $@;;
 	rebase)               shift; gitsvnrebase $@;;
 	trac)                 shift; generate_trac_link $@;;
