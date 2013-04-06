@@ -390,6 +390,18 @@ function jira_release_tracking()
 	done
 }
 
+function show_branch_status
+{
+	#####
+	# unpushed local branches
+	#
+	for i in $(git branch | tr -d "* ")
+	do
+		git rev-list --left-right --count $(get_git_svn_branch $i)..$i |
+			xargs echo $i
+	done | column -t
+}
+
 function error()
 {
 	if [ -n "$1" ]
@@ -424,8 +436,7 @@ case $1 in
 	eclipse)              open -a /Applications/eclipse_indigo/Eclipse.app/ $0;;
 	branch)
 		shift; case $1 in
-			info|last|latest|release|tags|rc|maintenance)
-			              shift; latest_rc_tags $@;;
+			--unpushed|status)   shift; show_branch_status $@;;
 			*)            active_branch_from_log $@;;
 		esac;;
 	upstream)             shift; get_git_svn_branch $@;;
