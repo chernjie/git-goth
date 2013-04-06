@@ -224,22 +224,27 @@ function create_rc()
 	git checkout $RC_BRANCH -b mergeQA_$RC_NUMBER
 }
 
-function show_non_dcommit_commits()
+function show_non_dcommit_hashes()
+{
+	git svn dcommit --dry-run | grep diff | tr " " "\n" | grep -v diff | grep -v "~"
+}
+
+function show_commit_messages()
 {
 	_TEMP=tempfile.tmp
 
-	DIFFTREE=$(git svn dcommit --dry-run | grep diff)
-	HASHES=$(for i in $DIFFTREE; do echo $i | grep -v diff | grep -v '~'; done;)
-	for i in $HASHES
-	do
-		git show $i --pretty=format:'====%n%B' --shortstat >> $_TEMP
-	done
+	case $1 in
+		jira|--jira) shift; jira=1;;
+		*)    ;;
+	esac
+
+	git show --pretty=format:'==== %h%n%B' --shortstat $@ >> $_TEMP
 	
 	if [ -f "$_TEMP" ]
 	then
-		if [ "jira" = "$1" ]
+		if [ $jira -eq 1 ]
 		then
-			cat $_TEMP | grep -oE '[A-Z]+\-[0-9]+' --color=never | grep -v QAT | sort -u | implode ' '
+			cat $_TEMP | _listjira | xargs echo
 		else
 			cat $_TEMP
 		fi
@@ -248,6 +253,23 @@ function show_non_dcommit_commits()
 	else
 		error "No mergeQA commits."
 	fi
+}
+
+function _listjira()
+{
+	grep -oE "[A-Z]+\-[0-9]+" --color=never |
+		grep -v QAT |
+		sort -u
+}
+
+function hash2jira()
+{
+	for i in $@
+	do
+		git show $i --relative="#" --format="%h $(
+			git show $i --format=%B --shortstat | _listjira | xargs echo
+		)" | grep -v ^$
+	done
 }
 
 function blame_during_merge_conflicts()
@@ -299,7 +321,7 @@ function error()
 	echo "Usage: git mig33 fetch|pull|rebase <remote>      # update local SVN to remote"
 	echo "Usage: git mig33 remote cleanup <remote>         # reverse prune, deletes remote non SVN branch"
 	echo "Usage: git mig33 remote missing <remote>         # SVN branches missing from remote"
-	echo "Usage: git mig33 show [jira]                     # show_non_dcommit_commits"
+	echo "Usage: git mig33 show [jira|hash]                # show_non_dcommit_commits"
 	echo
 	echo "Usage: git qa info|release                       # list last RC tags or maintenance branch"
 	echo "Usage: git qa unmerged                           # Resolved JIRA that are not released yet"
@@ -331,7 +353,14 @@ case $1 in
 			cleanup)      shift; delete_non_svn_branches_from_remote $@;;# Destructive
 			missing)      shift; missing_remote_branches $@;;
 		esac;;
-	show)                 shift; show_non_dcommit_commits $@;;
+	show)
+		shift; case $1 in
+			hash)         shift; show_non_dcommit_hashes;;
+			jira)         show_commit_messages --jira $(show_non_dcommit_hashes);;
+			both)         hash2jira $(show_non_dcommit_hashes);;
+			*)            show_commit_messages $(show_non_dcommit_hashes);;
+		esac;;
+	hash2jira)            shift; hash2jira $@;;
 	reflog)               shift; reflog $@;;
 	scp)				  shift; gitwebscp $@;;
 	rebase)				  shift; gitsvnrebase $@;;
