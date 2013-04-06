@@ -1,5 +1,7 @@
 #!/bin/bash
 
+[ $(uname) = "Linux" ] && sedRegExp="-r" || sedRegExp="-E"
+
 function latest_rc_tags()
 {
 	case $1 in
@@ -42,7 +44,7 @@ function get_svn_branch()
 		git log -1 --pretty=format:"%s%n%b" --first-parent --grep=git-svn-id $i |
 			grep git-svn-id |
 			cut -d' ' -f2 |
-			sed -E "{
+			sed $sedRegExp "{
 				s#$svn_url_pattern##
 				s#@.*##
 				s/^$/${GIT_SVN_ID:-git-svn}/
@@ -144,7 +146,7 @@ function set_remote()
 	if [ $(git remote | grep -c ^$remote$) -eq 0 ]
 	then
 		echo "Remote $remote does not exist in your git config"
-		exit
+		exit 1
 	fi
 }
 
@@ -157,7 +159,7 @@ function push_remote()
 	echo
 	echo "Pushing new SVN branches to remote..."
 	echo
-	branches_to_push=$(missing_remote_branches $remote)
+	branches_to_push=$(missing_remote_branches $remote ${2:-20})
 	# all_branches=$(git branch -r | tr -d \ | grep -v ^$(git remote | implode "|"))
 	for i in $branches_to_push
 	do
@@ -166,7 +168,7 @@ function push_remote()
 	for i in $branches_to_push
 	do
 		echo $i:$i
-	done | xargs git push $remote -f trunk:master
+	done | xargs git push -f $remote trunk:master
 	
 	echo
 	echo "Updating remote..."
