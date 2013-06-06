@@ -589,6 +589,17 @@ function scp_and_stage
 	COLOR_RESET
 }
 
+function reverse_scp()
+{
+	set_remote $1
+	shift
+
+	local _TMP=${0///}
+	echo $@ > $_TMP &&
+		rsync -rlDv --files-from=$_TMP "$(git config remote.$remote.url)/" ./ &&
+		rm $_TMP
+}
+
 function gitsvnrebase()
 {
 	local _list=()
@@ -806,6 +817,7 @@ case $1 in
 	log)                  shift; svn_branch_log $@;;
 	lg)                   shift; git_log_with_svn_branch $@;;
 	scp|stage)            shift; scp_and_stage $@;;
+	rscp|rstage)          shift; reverse_scp $@;;
 	rebase)               shift; gitsvnrebase $@;;
 	github)               shift; generate_github_link $@;;
 	trac)                 shift; generate_trac_link $@;;
