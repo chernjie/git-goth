@@ -47,3 +47,17 @@ OR
 curl -sk https://raw.github.com/mig33/git-goth/master/git-goth > ~/bin/git-goth
 chmod +x ~/bin/git-goth
 ```
+
+Documentation
+=============
+
+git goth scp|stage
+------------------
+```
+Usage: git goth scp|stage <remote> [ref|file..] # show diff relative to <ref> and upload unstaged files to specified remote
+```
+This is wrapper around the following tasks:
+- git diff <files>
+- scp <files> <remote>:<files>
+- git add <files>
+- delete any files in remote repo if local repo do not have those files.
