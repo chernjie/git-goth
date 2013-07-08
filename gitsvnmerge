@@ -1,0 +1,181 @@
+#!/bin/bash
+
+if [ $# -lt 2 ] && [ -z "$(cat .git/MERGE_MSG)" ]
+then
+    echo "Usage: ${0##/*/} <branchname> <JIRA#> [message]"
+    exit
+fi
+
+function get_last_log()
+{
+	# $1 git-ref
+	# $2 format
+	git log -1 --pretty=format:"$2" $1
+}
+
+function get_svn_branch()
+{
+	# git-ref
+	for i in $@
+	do
+		git log $i --pretty=format:"%B" --first-parent |
+			grep git-svn-id |
+			head -1 |
+			grep -oE '(branches/|tags/)?[^/]+@' --color=never |
+			tr -d "@"
+	done
+}
+
+function get_git_svn_branch()
+{
+	get_svn_branch $@ | grep -oE '(tags/)?[^/]+$' --color=never
+}
+
+function get_revisions()
+{
+	# git-ref
+	for i in $@
+	do
+		git svn find-rev $i
+	done | xargs printf 'r%s'
+}
+
+function get_diff_log()
+{
+	# $1 MERGE_FROM
+	# $2 current_branch
+	# $3 format
+	git log $1 ^remotes/$2 --pretty=format:"$3"
+}
+
+if [ "$1" = "--no-jira" ]
+then
+           NO_JIRA="$1"
+                   shift
+fi
+
+        MERGE_FROM="$1"
+                   shift
+		case "$1" in
+			mergeQA) JIRA="$(git config release.jira)";;
+			*)       JIRA="$1"; shift;;
+		esac
+  OPTIONAL_MESSAGE="$@"
+
+     last_revision=$(get_revisions $MERGE_FROM)
+    svn_merge_from=$(get_svn_branch $MERGE_FROM)
+svn_current_branch=$(get_svn_branch HEAD)
+    current_branch=$(get_git_svn_branch HEAD)
+     merge_message="$JIRA: merge $svn_merge_from into $svn_current_branch $last_revision;
+$OPTIONAL_MESSAGE"
+
+if [ -z "$svn_merge_from" ] && [ -z "$(cat .git/MERGE_MSG)" ]
+then
+	echo "Error: you have non-SVN compatible commits in branch:	$MERGE_FROM"
+	echo "Error: merge aborted."
+	exit
+fi
+
+if [ -f ".git/MERGE_MSG" ] && [ -n "$(cat .git/MERGE_MSG)" ]
+then
+	NO_JIRA='is_merging'
+	IS_MERGING=true
+	merge_message="$(cat .git/MERGE_MSG)"
+fi
+
+if [ -z "$NO_JIRA" ]
+then
+
+get_diff_log=get_diff_log.hash
+if [ TRUE ]
+then
+     _jira_numbers=$(get_diff_log $MERGE_FROM $current_branch %B | grep -oE "[A-Z]+-[0-9]+" --color=never | grep -v "QAT" | sort -u)
+   _unique_authors=$(get_diff_log $MERGE_FROM $current_branch %an | sort -u | xargs echo | sed 's# #, #g')
+           _hashes=$(get_diff_log $MERGE_FROM $current_branch %H)
+else
+	git log $MERGE_FROM ^remotes/$current_branch > $get_diff_log
+     _jira_numbers=$(grep -oE "[A-Z]+-[0-9]+" $get_diff_log --color=never | grep -v "QAT" | sort -u)
+   _unique_authors=$(grep  -E "Author:"       $get_diff_log --color=never | cut -d\  -f2 | sort -u | xargs echo | sed 's# #, #g')
+           _hashes=$(grep  -E "commit [\w]*"  $get_diff_log --color=never | cut -d\  -f2)
+fi
+
+for _hash in $_hashes
+do
+	if [ -z $get_diff_log ]
+	then
+		grep $_hash $get_diff_log -A$(
+			grep $_hash $get_diff_log -A 100 | grep -nm1 git-svn-id | cut -d: -f1
+		) > $_hash.hash
+	else
+		get_last_log $_hash %B > $_hash.hash
+	fi
+done
+
+counter=0
+time for _jira in $_jira_numbers
+do
+	for _hash in $_hashes
+	do
+		if [ $(grep -c "$_jira" $_hash.hash) -gt 0 ]
+		then
+			counter=$(($counter+1))
+			_revision=$(grep -E 'git-svn-id' $_hash.hash | grep -oE '@[0-9]+' --color=never | tr '@' 'r')
+			if [ $(echo $_jira_rev_list | tail -1 | grep -c "$_jira") -gt 0 ]
+			then
+				_jira_rev_list="$_jira_rev_list $_revision"
+			else
+				_jira_rev_list="$_jira_rev_list$_semicolon$_jira: $_revision"
+				_semicolon=";
+"
+			fi
+		fi
+	done
+done
+echo $counter;
+rm *.hash
+
+     merge_message="$merge_message
+AUTHORS: $_unique_authors;
+
+$_jira_rev_list;
+"
+fi #NO_JIRA
+
+function select_merge_action()
+{
+	merge_message="$1"
+
+	echo
+	if [ -n "$IS_MERGING" ]
+	then
+		echo 'git commit -m "'"$merge_message"'"'
+	else
+		echo 'git merge --no-ff '$MERGE_FROM' -m "'"$merge_message"'"'
+	fi
+	echo
+
+	select yn in Proceed? "Edit message" Abort; do
+	    case $yn in
+			Proceed? )
+				if [ -n "$IS_MERGING" ]
+				then
+					git commit -m "$merge_message";
+				else
+					git merge --no-ff $MERGE_FROM -m "$merge_message";
+				fi
+				git svn dcommit --dry-run
+				break;;
+			"Edit message" )
+				echo "$merge_message" > merge_message.tmp
+				vim merge_message.tmp
+				select_merge_action "$(cat merge_message.tmp)"
+				rm merge_message.tmp
+				break;;
+			Abort )
+				rm merge_message.tmp > /dev/null 2>&1
+				exit;;
+	    esac
+	done
+}
+
+select_merge_action "$merge_message"
