@@ -625,8 +625,14 @@ function gitsvnrebase()
 	local has_changes=`git stash save $0 | grep -c $0`
 	local current_branch=$(git name-rev --name-only HEAD)
 
-	echo git svn fetch --all
-	git svn fetch --all
+	if [[ -n $(git config --get-regexp svn-remote.*\.url) ]] 
+	then
+		echo git svn fetch --all
+		git svn fetch --all
+	else
+		echo git fetch --all
+		git fetch --all
+	fi
 	
 	for i in ${_list[@]}
 	do
